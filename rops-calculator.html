@@ -1396,7 +1396,7 @@ function renderTable(rows, summary) {
 
   // ── Render rows ──
   tbody.innerHTML = displayOrder.map(({ row, isLastChild }) => {
-    const money = (value, digits=0) => f.$(value,digits,rowCurrency(row));
+    const money = (value, digits=2) => f.$(value,digits,rowCurrency(row));
     const idx      = row.idx;
     const isDPP    = !!row.dppContribOIId;
     const isParent = row.isParentToDPP;
@@ -1517,15 +1517,15 @@ function renderTable(rows, summary) {
   tbody.innerHTML += `<tr class="total-row">
     <td class="l" colspan="5">TOTAL · ${S.currency==='MIXED'?'Mixed currencies':S.currency||'Currency not specified'}</td>
     <td class="sec" colspan="3">—</td>
-    <td><b>${f.$(tCur)}</b></td>
+    <td><b>${f.$(tCur,2)}</b></td>
     <td class="sec" colspan="3">—</td>
     <td class="sec">—</td>
-    <td class="${tAtr<-1?'atr':''}">${f.$(tAtr)}</td>
-    <td>${f.$(tUpd)}</td>
+    <td class="${tAtr<-1?'atr':''}">${f.$(tAtr,2)}</td>
+    <td>${f.$(tUpd,2)}</td>
     <td class="sec" colspan="3">—</td>
-    <td><b>${f.$(tMin)}</b></td>
+    <td><b>${f.$(tMin,2)}</b></td>
     <td class="sec" colspan="3">—</td>
-    <td><b>${f.$(tMax)}</b></td>
+    <td><b>${f.$(tMax,2)}</b></td>
     <td class="sec" colspan="2">—</td>
   </tr>`;
 
