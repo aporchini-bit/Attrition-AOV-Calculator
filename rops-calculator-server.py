@@ -401,7 +401,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    server = http.server.HTTPServer(('localhost', PORT), Handler)
+    try:
+        server = http.server.HTTPServer(('localhost', PORT), Handler)
+    except OSError as e:
+        if 'Address already in use' in str(e) or getattr(e, 'errno', None) == 48:
+            print(f'\n⚠  The calculator already seems to be running — a browser tab may already be open.')
+            print(f'   Try going to http://localhost:{PORT} instead of starting it again.')
+            print(f'   If that page doesn\'t load, close any other window running this tool, then try again.\n')
+            input('Press Enter to close this window...')
+            raise SystemExit(1)
+        raise
     cfg = load_config()
     configured = bool(cfg.get('sessionId'))
     print(f'\033[1;34mROPS Calculator → http://localhost:{PORT}\033[0m')

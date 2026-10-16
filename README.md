@@ -5,29 +5,39 @@ data live from org62 — no manual SOQL or CSV exports.
 
 ## Setup (one time, per person)
 
-1. **Install Python 3** if you don't have it already (macOS usually has it —
-   check with `python3 --version` in Terminal).
+**Important:** never open `rops-calculator.html` directly by double-clicking
+it. It has to be loaded through the local server at `http://localhost:8766`
+— opening the file directly (`file:///...`) will show CORS/network errors
+and none of the Fetch buttons will work.
 
-2. **Download this folder** (clone the repo, or download it as a zip and
+### Mac
+
+1. **Download this folder** (clone the repo, or download it as a zip and
    unzip it).
+2. **Double-click `start.command`.** macOS already has Python 3 built in —
+   nothing to install. If macOS warns about an unidentified developer the
+   first time, right-click the file → **Open** instead of double-clicking.
+3. A terminal window opens and your browser opens to the calculator
+   automatically. Leave that window open while you use the tool.
 
-3. **Get a Salesforce session ID** for org62:
+### Windows
+
+1. **Download this folder** (clone the repo, or download it as a zip and
+   unzip it).
+2. **One-time only:** follow `windows/SETUP.md` (about 2 minutes) — it has
+   you download a small, install-free copy of Python once. No admin rights
+   needed.
+3. From then on, just **double-click `windows/start.bat`** whenever you want
+   to use the tool. A window opens and your browser opens to the calculator
+   automatically.
+
+### Either way, once it's open
+
+1. **Get a Salesforce session ID** for org62:
    - Open any org62 page in your browser while logged in.
    - Open the Salesforce Inspector browser extension.
    - Copy the **Session ID** it shows for the current org.
-
-4. **Start the server.** In Terminal, from this folder:
-   ```bash
-   python3 rops-calculator-server.py
-   ```
-   You should see:
-   ```
-   ROPS Calculator → http://localhost:8766
-   ```
-
-5. **Open the tool**: go to `http://localhost:8766` in your browser.
-
-6. **Paste your session ID** when prompted on the page (Step 1), and save it.
+2. **Paste your session ID** when prompted on the page (Step 1), and save it.
    It's remembered on your machine after that — until it expires (typically a
    few hours), at which point you'll paste a fresh one the same way.
 

@@ -2,3 +2,4 @@ rops-calculator-config.json
 rops-calculator-server.log
 __pycache__/
 .DS_Store
+windows/python-embed/
