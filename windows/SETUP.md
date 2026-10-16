@@ -1,7 +1,13 @@
-# Windows one-time setup (about 2 minutes)
+# Windows — nothing to set up
 
-You only need to do this once. After this, everyone just double-clicks
-`start.bat` to open the calculator — no terminal, no typing commands.
+Good news: this folder already includes everything needed to run the tool.
+Just double-click `start.bat`. No download, no install, no terminal.
+
+## If start.bat shows a "Setup needed" message
+
+That means the `python-embed` folder didn't come through when you downloaded
+or copied this project (some zip tools or file-size limits can drop it). To
+fix it:
 
 1. Download the Python "embeddable" package (a small, install-free copy of
    Python — about 10 MB, needs no admin rights):
@@ -24,8 +30,4 @@ You only need to do this once. After this, everyone just double-clicks
        ...
    ```
 
-5. Double-click `start.bat`. A black window opens (leave it open) and your
-   browser opens to the calculator automatically.
-
-That's it — from now on, just double-click `start.bat` whenever you want to
-use the tool. Close the black window when you're done.
+5. Double-click `start.bat` again.

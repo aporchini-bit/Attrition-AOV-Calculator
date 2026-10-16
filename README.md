@@ -23,13 +23,15 @@ and none of the Fetch buttons will work.
 ### Windows
 
 1. **Download this folder** (clone the repo, or download it as a zip and
-   unzip it).
-2. **One-time only:** follow `windows/SETUP.md` (about 2 minutes) — it has
-   you download a small, install-free copy of Python once. No admin rights
-   needed.
-3. From then on, just **double-click `windows/start.bat`** whenever you want
-   to use the tool. A window opens and your browser opens to the calculator
-   automatically.
+   unzip it). Everything needed to run it is already included — nothing to
+   install, nothing to set up.
+2. **Double-click `windows/start.bat`.** A window opens and your browser
+   opens to the calculator automatically. Leave that window open while you
+   use the tool.
+
+   If `start.bat` shows a "Setup needed" message instead, see
+   `windows/SETUP.md` — that only happens if the `python-embed` folder got
+   dropped somewhere along the way (e.g. some zip tools skip it).
 
 ### Either way, once it's open
 
