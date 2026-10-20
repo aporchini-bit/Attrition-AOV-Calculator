@@ -7,6 +7,37 @@ The whole tool is one self-contained file: **`dist/rops-calculator.py`**. The
 HTML and server are bundled inside it, so there are no other files to keep
 next to it.
 
+## Download the tool
+
+1. Open the repo on GitHub:
+   **https://github.com/aporchini-bit/Attrition-AOV-Calculator**
+2. Click the green **`<> Code`** button → **Download ZIP**.
+3. You'll get a file named **`Attrition-AOV-Calculator-main.zip`** in your
+   Downloads.
+4. **Unzip it** (double-click on Mac; right-click → *Extract All…* on Windows).
+   You'll end up with a folder named **`Attrition-AOV-Calculator-main`**.
+5. Keep that whole folder together — don't move individual files out of it.
+
+### What's inside the folder
+
+After unzipping you'll see these items. You only ever **double-click one
+launcher** — everything else supports it.
+
+| Item | What it is | Do you touch it? |
+|------|------------|------------------|
+| **`start.command`** | Mac launcher — **double-click this on a Mac** | ✅ Mac users |
+| **`windows/`** → **`start.bat`** | Windows launcher — **double-click this on Windows** (inside the `windows` folder) | ✅ Windows users |
+| `dist/rops-calculator.py` | The actual tool (one bundled file the launchers run) | No — runs automatically |
+| `windows/python-embed/` | A built-in copy of Python for Windows (so you don't install anything) | No |
+| `windows/SETUP.md` | Only needed if Windows shows a "Setup needed" message | Only if prompted |
+| `README.md` | This file | Reading it now |
+| `rops-calculator-config.json.example` | A sample of the saved-session file format | No |
+| `src/` | The editable source code (for maintainers only) | No |
+| `.gitignore` | Housekeeping for Git | No |
+
+**Short version:** on a Mac, double-click **`start.command`**. On Windows, open
+the **`windows`** folder and double-click **`start.bat`**. That's it.
+
 ## Run it
 
 > **Important:** don't open the bundle in a browser or a text editor — it's a
@@ -14,7 +45,7 @@ next to it.
 
 ### Mac
 
-1. **Download this folder** (clone the repo, or download it as a zip and unzip).
+1. Download and unzip the folder (see **Download the tool** above).
 2. **Double-click `start.command`.** macOS already has Python 3 built in —
    nothing to install.
    - If macOS says *"start.command" can't be opened because it is from an
@@ -32,11 +63,11 @@ python3 dist/rops-calculator.py
 
 ### Windows
 
-1. **Download this folder** (clone the repo, or download it as a zip and
-   unzip). Everything needed to run it is already included — nothing to
-   install.
-2. **Double-click `windows/start.bat`.** A window opens and your browser opens
-   to the calculator. Leave that window open while you use the tool.
+1. Download and unzip the folder (see **Download the tool** above).
+   Everything needed to run it is already included — nothing to install.
+2. **Open the `windows` folder and double-click `start.bat`.** A window opens
+   and your browser opens to the calculator. Leave that window open while you
+   use the tool.
    - If `start.bat` shows a "Setup needed" message, see `windows/SETUP.md`
      (that only happens if the `python-embed` folder got dropped during
      download).
