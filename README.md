@@ -105,7 +105,18 @@ per-person and per-machine, and it expires (typically after a few hours).
 The saved session ID is remembered on your machine until it expires, when
 you'll paste a fresh one the same way.
 
-## Using it
+## Two tools, one page
+
+A tab bar at the top switches between two calculators that share the same saved
+Salesforce session:
+
+- **Attrition & AOV** — model renewal attrition/AOV for a contract (the default tab).
+- **FCV** — Full Cancellation Value calculator (see below).
+
+The session-ID box sits above the tabs, so you set it once and both tools use it.
+You can deep-link to a tab with `#attrition` or `#fcv` in the URL.
+
+## Using the Attrition & AOV tab
 
 1. Paste one or more contract numbers, record IDs, or URLs — fetches live from
    Salesforce.
