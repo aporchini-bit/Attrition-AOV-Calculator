@@ -390,12 +390,16 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
         <b>First time on this computer?</b> You'll be asked for your Salesforce session ID once — paste it below and it's remembered for next time.
         <div id="sessionSetup" style="margin-top:10px; display:none;">
           <div class="field-group">
-            <label for="sessionIdInput">Salesforce session ID</label>
+            <label for="sessionIdInput">Salesforce session ID (the <code>sid</code> cookie)</label>
             <input style="width:100%;" id="sessionIdInput" type="password" placeholder="Paste your org62 session ID" autocomplete="off">
           </div>
           <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="saveSessionId()">Save session ID</button>
           <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="testSession()">Test session</button>
           <div id="sessionTestResult" style="margin-top:10px; white-space:pre-line;"></div>
+          <div style="margin-top:10px; font-size:12px; color:var(--text-muted);">
+            <b>How to get it:</b> in org62, open DevTools → <b>Application → Cookies</b>, find the rows named exactly <code>sid</code> (not <code>sid_Client</code>), copy one value, paste above, Save, then <b>Test session</b>.
+            Salesforce sets a few <code>sid</code> cookies and only one works for the API — if the test says rejected, just copy a <b>different</b> <code>sid</code> row and test again until it says valid.
+          </div>
         </div>
       </div>
     </div>
@@ -485,11 +489,11 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
                 <th style="min-width:90px">Upd. AOV</th>
                 <th class="sec" style="min-width:60px">% Chg</th>
                 <th style="min-width:80px">Min PPU</th>
-                <th style="min-width:80px">Ceil PPU</th>
+                <th style="min-width:80px">Unit Price</th>
                 <th style="min-width:90px">Min AOV</th>
                 <th class="sec" style="min-width:60px">% Chg</th>
                 <th style="min-width:80px">Max PPU</th>
-                <th style="min-width:80px">Ceil PPU</th>
+                <th style="min-width:80px">Unit Price</th>
                 <th style="min-width:90px">Max AOV</th>
                 <th class="sec" style="min-width:90px">Uplift AOV</th>
                 <th style="min-width:70px">% Uplift</th>
@@ -714,11 +718,23 @@ async function testSession() {
       el.textContent = r.message;
     } else if (r.verdict === 'rejected') {
       el.style.color = '#cf222e';
-      el.textContent =
-        `${r.message}\nInstance: ${r.instance}\nSaved token length: ${r.sidLength}\n` +
-        (r.errorCode === 'INVALID_SESSION_ID'
-          ? 'Cause: the token is wrong-domain, truncated, or expired. Copy the FULL sid cookie from org62.my.salesforce.com (not lightning.force.com), including everything after the "!", then Save again.'
-          : 'See the errorCode above.');
+      if (r.errorCode === 'INVALID_SESSION_ID') {
+        el.innerHTML =
+          `<b>✕ That session ID was rejected (INVALID_SESSION_ID).</b> Don't worry — try another one.`
+          + `<div style="margin-top:8px; color:var(--text); font-weight:400;">`
+          + `Salesforce sets <b>several <code>sid</code> cookies</b> and only one works for the API — they look identical, so you just grabbed one of the others.`
+          + `<ol style="margin:6px 0 0 18px; padding:0;">`
+          + `<li>Open <b>DevTools → Application → Cookies</b> for org62.</li>`
+          + `<li>Find the rows named exactly <code>sid</code> (there are usually 2–3).</li>`
+          + `<li>Copy a <b>different</b> <code>sid</code> value than last time — the full value, including everything after the <code>!</code>.</li>`
+          + `<li>Paste it above, Save, and test again. Repeat until one says <b>valid</b>.</li>`
+          + `</ol>`
+          + `<div style="margin-top:6px; color:var(--text-muted);">Tip: the <code>sid_Client</code> cookies are not it — only the plain <code>sid</code> rows.</div>`
+          + `</div>`;
+      } else {
+        el.textContent =
+          `${r.message}\nInstance: ${r.instance}\nSaved token length: ${r.sidLength}\nSee the errorCode above.`;
+      }
     } else {
       el.style.color = '#cf222e';
       el.textContent = r.message;
