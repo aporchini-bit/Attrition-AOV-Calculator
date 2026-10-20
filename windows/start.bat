@@ -21,6 +21,6 @@ echo (Leave this window open while you use the tool. Close it when done.)
 echo.
 
 start "" /min cmd /c "timeout /t 2 >nul && start http://localhost:8766"
-"%PY%" ..\rops-calculator-server.py
+"%PY%" ..\dist\rops-calculator.py
 
 pause
