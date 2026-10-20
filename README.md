@@ -117,6 +117,26 @@ you'll paste a fresh one the same way.
 4. Use **Undo last change** / **Reset modifications** to step back or start over.
 5. Optionally compare against an actual quote in the last step.
 
+## FCV — Full Cancellation Value
+
+The **FCV** section (below the quote comparison) is a manual calculator for KMOD
+RevRec decisions. Pick a mode and enter the values:
+
+- **Full cancellation** — AOV, effective date, end date. FCV = (AOV ÷ 360) × days
+  remaining.
+- **Reduction / Swap** — the removed line's annualized value (or Attrition Amount),
+  effective date, and the line's own end date. FCV = (AOV ÷ 12) × months, where
+  months = (end − effective) ÷ 30. Usage products can derive their annual AOV from a
+  multi-year lump sum. For a swap, enter only the removed side.
+- **DPP fee reduction** — the Asset Line Item's Sales Price, Quantity, start and end
+  dates. FCV = Sales Price × Qty × months (anchored to the effective date). A
+  future-dated line is treated as not active and excluded.
+
+Pick a **currency**; non-USD amounts are converted to USD using Org62's live
+`CurrencyType` rate (so it needs a valid saved session), and the result flags when the
+USD FCV exceeds **$100,000** (RevRec approval required). If the rate lookup fails, a
+manual rate field appears as a fallback.
+
 ## For maintainers
 
 - **Edit the source** in `src/`, not the bundle:

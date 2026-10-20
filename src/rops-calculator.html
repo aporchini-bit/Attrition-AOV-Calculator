@@ -535,6 +535,88 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
       </div>
     </div>
 
+    <!-- ── FCV — Full Cancellation Value ── -->
+    <div class="card" id="fcvCard">
+      <div class="card-header">
+        <h2>FCV — Full Cancellation Value</h2>
+        <span class="hint">Manual calculator for KMOD RevRec. Full cancellation, reduction (= swap), or DPP fee line. Daily rate uses a 360-day year; months use a flat 30-day month.</span>
+      </div>
+      <div class="card-body">
+        <div class="field-row" style="display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-end;">
+          <div class="field-group">
+            <label for="fcvMode">Mode</label>
+            <select id="fcvMode" class="w140" onchange="onFcvModeChange()">
+              <option value="full">Full cancellation</option>
+              <option value="reduction">Reduction / Swap</option>
+              <option value="dpp">DPP fee reduction</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="fcvEffDate">Effective date</label>
+            <input id="fcvEffDate" type="date">
+          </div>
+          <div class="field-group">
+            <label for="fcvCurrency">Currency</label>
+            <select id="fcvCurrency" class="w140"></select>
+          </div>
+        </div>
+
+        <!-- Full cancellation inputs -->
+        <div id="fcvFullInputs" class="fcv-inputs" style="margin-top:12px;">
+          <div class="field-row" style="display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-end;">
+            <div class="field-group"><label for="fcvFullAOV">AOV (full contract)</label><input id="fcvFullAOV" type="number" min="0" step="0.01" placeholder="e.g. 120000"></div>
+            <div class="field-group"><label for="fcvFullEnd">Contract end date</label><input id="fcvFullEnd" type="date"></div>
+          </div>
+        </div>
+
+        <!-- Reduction / Swap inputs -->
+        <div id="fcvReductionInputs" class="fcv-inputs" style="margin-top:12px; display:none;">
+          <div class="field-row" style="display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-end;">
+            <div class="field-group"><label for="fcvRedType">Product type</label>
+              <select id="fcvRedType" class="w140" onchange="onFcvRedTypeChange()">
+                <option value="license">License (billed annually)</option>
+                <option value="usage-monthly">Usage — monthly billed</option>
+                <option value="usage-daily">Usage — daily billed</option>
+              </select>
+            </div>
+            <div class="field-group"><label for="fcvRedAOV">Reduction AOV <span style="color:var(--text-muted)">(annualized, or Attrition Amount)</span></label><input id="fcvRedAOV" type="number" min="0" step="0.01" placeholder="e.g. 24000"></div>
+            <div class="field-group"><label for="fcvRedEnd">Reduced line's end date</label><input id="fcvRedEnd" type="date"></div>
+          </div>
+          <div id="fcvUsageDeriveRow" class="field-row" style="display:none; margin-top:12px; gap:12px 16px; flex-wrap:wrap; align-items:flex-end;">
+            <div class="field-group" style="max-width:520px;">
+              <label><input type="checkbox" id="fcvUsageMultiYear" onchange="toggleUsageDerive()"> Usage price is a multi-year lump sum (derive annual AOV)</label>
+            </div>
+            <div class="field-group" id="fcvUsageTermGroup" style="display:none;"><label for="fcvUsageTermMonths">Usage contract term (months)</label><input id="fcvUsageTermMonths" type="number" min="1" step="1" placeholder="e.g. 36"></div>
+          </div>
+          <p class="hint" style="margin-top:8px; white-space:normal;">Term is the reduced line's own end date minus the effective date (flat 30-day month) — not the line's original term length. Swap: use the removed side only.</p>
+        </div>
+
+        <!-- DPP inputs -->
+        <div id="fcvDppInputs" class="fcv-inputs" style="margin-top:12px; display:none;">
+          <div class="field-row" style="display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-end;">
+            <div class="field-group"><label for="fcvDppPrice">Sales Price (Asset Line Item)</label><input id="fcvDppPrice" type="number" min="0" step="0.01" placeholder="e.g. 1000"></div>
+            <div class="field-group"><label for="fcvDppQty">Quantity (ALI's own)</label><input id="fcvDppQty" type="number" min="0" step="1" placeholder="e.g. 60"></div>
+            <div class="field-group"><label for="fcvDppStart">ALI start date</label><input id="fcvDppStart" type="date"></div>
+            <div class="field-group"><label for="fcvDppEnd">ALI end date</label><input id="fcvDppEnd" type="date"></div>
+          </div>
+          <p class="hint" style="margin-top:8px; white-space:normal;">Term anchors to the effective date (fallback: ALI start date) through the ALI's own end date. A future-dated ALI is not active and is excluded.</p>
+        </div>
+
+        <!-- Optional manual FX fallback (revealed if the rate lookup fails) -->
+        <div id="fcvFxFallback" class="field-row" style="display:none; margin-top:12px; gap:12px 16px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="field-group"><label for="fcvManualRate">Conversion rate (foreign per USD)</label><input id="fcvManualRate" type="number" min="0" step="0.000001" placeholder="e.g. 1.52686"></div>
+          <span class="hint" style="white-space:normal;">Couldn't fetch the rate from Org62 — enter it manually (CurrencyType.ConversionRate).</span>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center; margin-top:14px;">
+          <button class="btn btn-primary" onclick="calculateFCV()">Calculate FCV →</button>
+          <span id="fcvStatus" style="font-size:12px; color:var(--text-muted);"></span>
+        </div>
+
+        <div id="fcvResult" style="margin-top:16px;"></div>
+      </div>
+    </div>
+
   </div>
 
 <footer class="workspace-footer">Attrition &amp; AOV · Your contract renewal workspace</footer>
@@ -749,6 +831,209 @@ async function testSessionRequest() {
   return res.json();
 }
 checkSession();
+
+// ─────────────────────────────────────────────────────────────────
+// FCV — Full Cancellation Value calculator (manual inputs)
+// Rules per the ROPS KMOD FCV skill: 360-day year for daily rate,
+// flat 30-day month for terms, remaining term anchored to the effective date.
+// ─────────────────────────────────────────────────────────────────
+function initFcv() {
+  // populate currency dropdown (USD first, then the rest)
+  const sel = document.getElementById('fcvCurrency');
+  if (sel && !sel.options.length) {
+    const codes = ['USD', ...currencyCodes.filter(c => c !== 'USD')];
+    sel.innerHTML = codes.map(c => `<option value="${c}">${c}</option>`).join('');
+    sel.value = 'USD';
+  }
+}
+function onFcvModeChange() {
+  const mode = document.getElementById('fcvMode').value;
+  document.getElementById('fcvFullInputs').style.display      = mode === 'full' ? '' : 'none';
+  document.getElementById('fcvReductionInputs').style.display = mode === 'reduction' ? '' : 'none';
+  document.getElementById('fcvDppInputs').style.display       = mode === 'dpp' ? '' : 'none';
+  document.getElementById('fcvResult').innerHTML = '';
+}
+function onFcvRedTypeChange() {
+  const t = document.getElementById('fcvRedType').value;
+  document.getElementById('fcvUsageDeriveRow').style.display = t.startsWith('usage') ? '' : 'none';
+}
+function toggleUsageDerive() {
+  const on = document.getElementById('fcvUsageMultiYear').checked;
+  document.getElementById('fcvUsageTermGroup').style.display = on ? '' : 'none';
+}
+
+// Plain calendar-day difference (no +1). Returns null on bad dates.
+function fcvDaysBetween(startStr, endStr) {
+  if (!startStr || !endStr) return null;
+  const s = new Date(startStr + 'T00:00:00');
+  const e = new Date(endStr + 'T00:00:00');
+  if (isNaN(s) || isNaN(e)) return null;
+  return Math.round((e - s) / 86400000);
+}
+const fcvMoney = (cur, v) => (v==null||isNaN(v)) ? '—'
+  : new Intl.NumberFormat('en-US',{style:'currency',currency:cur,currencyDisplay:'code',minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+
+async function fcvGetRate(iso) {
+  // USD needs no lookup
+  if (iso === 'USD') return { rate: 1, source: 'org62' };
+  // manual fallback takes precedence if the user filled it in
+  const manual = parseFloat(document.getElementById('fcvManualRate').value);
+  if (manual > 0) return { rate: manual, source: 'manual' };
+  const res = await fetch(API_BASE + '/currency-rate?iso=' + encodeURIComponent(iso));
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) {
+    const e = new Error(body.error || ('Rate lookup failed (HTTP ' + res.status + ')'));
+    e.needManual = true;
+    throw e;
+  }
+  return { rate: body.rate, source: body.source || 'org62' };
+}
+
+async function calculateFCV() {
+  const el = document.getElementById('fcvResult');
+  const status = document.getElementById('fcvStatus');
+  const mode = document.getElementById('fcvMode').value;
+  const cur  = document.getElementById('fcvCurrency').value || 'USD';
+  const eff  = document.getElementById('fcvEffDate').value;
+  status.textContent = ''; el.innerHTML = '';
+
+  let fcv = null, rows = [], title = '', note = '';
+
+  if (mode === 'full') {
+    const aov = parseFloat(document.getElementById('fcvFullAOV').value);
+    const end = document.getElementById('fcvFullEnd').value;
+    if (!(aov > 0) || !eff || !end) { status.textContent = 'Enter AOV, effective date, and end date.'; return; }
+    const days = fcvDaysBetween(eff, end);
+    if (days == null || days < 0) { status.textContent = 'End date must be on/after the effective date.'; return; }
+    const daily = aov / 360, monthly = aov / 12;
+    fcv = daily * days;
+    title = 'Full cancellation';
+    rows = [
+      ['AOV', fcvMoney(cur, aov)],
+      ['Daily rate (AOV / 360)', fcvMoney(cur, daily)],
+      ['Monthly rate (AOV / 12)', fcvMoney(cur, monthly)],
+      ['Effective date', eff],
+      ['End date', end],
+      ['Days remaining', String(days)],
+    ];
+    note = `FCV = ${fcvMoney(cur, daily)} × ${days} days`;
+  }
+
+  else if (mode === 'reduction') {
+    const type = document.getElementById('fcvRedType').value;
+    let aov = parseFloat(document.getElementById('fcvRedAOV').value);
+    const end = document.getElementById('fcvRedEnd').value;
+    if (!(aov > 0) || !eff || !end) { status.textContent = 'Enter reduction AOV, effective date, and the line’s end date.'; return; }
+    // Usage multi-year: derive annual AOV from the lump-sum price over its term.
+    let deriveLine = '';
+    if (type.startsWith('usage') && document.getElementById('fcvUsageMultiYear').checked) {
+      const tm = parseFloat(document.getElementById('fcvUsageTermMonths').value);
+      if (!(tm > 0)) { status.textContent = 'Enter the usage contract term in months to derive annual AOV.'; return; }
+      const lump = aov;                    // the entered value is the lump-sum price
+      aov = (lump / tm) * 12;              // annual Usage AOV
+      deriveLine = `Derived annual AOV = ${fcvMoney(cur, lump)} ÷ ${tm} mo × 12`;
+    }
+    const days = fcvDaysBetween(eff, end);
+    if (days == null || days < 0) { status.textContent = 'The line’s end date must be on/after the effective date.'; return; }
+    if (type === 'usage-daily') {
+      const daily = aov / 360;
+      fcv = daily * days;
+      rows = [
+        ['Product type', 'Usage — daily billed'],
+        deriveLine ? ['Annual AOV derivation', deriveLine] : null,
+        ['Reduction AOV', fcvMoney(cur, aov)],
+        ['Daily rate (AOV / 360)', fcvMoney(cur, daily)],
+        ['Effective date', eff],
+        ['Reduced line end date', end],
+        ['Days remaining', String(days)],
+      ].filter(Boolean);
+      note = `FCV = ${fcvMoney(cur, daily)} × ${days} days`;
+    } else {
+      const months = days / 30;            // flat 30-day month
+      const monthly = aov / 12;
+      fcv = monthly * months;
+      rows = [
+        ['Product type', type === 'license' ? 'License' : 'Usage — monthly billed'],
+        deriveLine ? ['Annual AOV derivation', deriveLine] : null,
+        ['Reduction AOV', fcvMoney(cur, aov)],
+        ['Monthly rate (AOV / 12)', fcvMoney(cur, monthly)],
+        ['Effective date', eff],
+        ['Reduced line end date', end],
+        ['Term (months, days ÷ 30)', months.toFixed(1) + ' mo (' + days + ' days)'],
+      ].filter(Boolean);
+      note = `FCV = ${fcvMoney(cur, monthly)} × ${months.toFixed(1)} months`;
+    }
+    title = 'Reduction / Swap';
+  }
+
+  else if (mode === 'dpp') {
+    const price = parseFloat(document.getElementById('fcvDppPrice').value);
+    const qty   = parseFloat(document.getElementById('fcvDppQty').value);
+    const start = document.getElementById('fcvDppStart').value;
+    const end   = document.getElementById('fcvDppEnd').value;
+    if (!(price > 0) || !(qty > 0) || !end) { status.textContent = 'Enter Sales Price, Quantity, and the ALI end date.'; return; }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const startD = start ? new Date(start + 'T00:00:00') : null;
+    const active = !startD || startD <= today;
+    const anchor = eff || start;           // effective date preferred, else ALI start
+    if (!anchor) { status.textContent = 'Enter an effective date (or the ALI start date) to anchor the term.'; return; }
+    const days = fcvDaysBetween(anchor, end);
+    if (days == null || days < 0) { status.textContent = 'The ALI end date must be on/after the term anchor date.'; return; }
+    const months = days / 30;
+    if (!active) {
+      fcv = 0;
+      note = 'Line is not active yet (future start date) — excluded from the FCV calculation.';
+    } else {
+      fcv = price * qty * months;
+      note = `FCV = ${fcvMoney(cur, price)} × ${qty} × ${months.toFixed(1)} months`;
+    }
+    title = 'DPP fee reduction';
+    rows = [
+      ['Sales Price', fcvMoney(cur, price)],
+      ['Quantity', String(qty)],
+      ['ALI start date', start || '(none)'],
+      ['ALI end date', end],
+      ['Active?', active ? 'Yes' : 'No — excluded from calc'],
+      ['Term anchor', eff ? ('Effective date ' + eff) : ('ALI start ' + (start||''))],
+      ['Term (months, days ÷ 30)', months.toFixed(1) + ' mo (' + days + ' days)'],
+    ];
+  }
+
+  // Currency → USD conversion for the $100k gate.
+  let usd = fcv, rate = 1, rateSource = 'n/a';
+  if (cur !== 'USD') {
+    status.textContent = 'Fetching Org62 conversion rate…';
+    try {
+      const r = await fcvGetRate(cur);
+      rate = r.rate; rateSource = r.source;
+      usd = fcv / rate;
+      document.getElementById('fcvFxFallback').style.display = 'none';
+    } catch (e) {
+      status.textContent = e.message;
+      if (e.needManual) document.getElementById('fcvFxFallback').style.display = '';
+      return;
+    }
+  }
+  status.textContent = '';
+
+  const overGate = usd > 100000;
+  const html = [];
+  html.push(`<div style="font-weight:700; margin-bottom:8px;">💰 Full Cancellation Value — ${title}</div>`);
+  html.push(`<table class="pt" style="width:auto; min-width:360px;"><tbody>`
+    + rows.map(([k,v]) => `<tr><td class="l" style="padding:4px 10px;">${k}</td><td style="padding:4px 10px; font-weight:600;">${v}</td></tr>`).join('')
+    + `</tbody></table>`);
+  html.push(`<div style="margin-top:10px; font-size:14px;">${note} = <b>${fcvMoney(cur, fcv)}</b></div>`);
+  if (cur !== 'USD') {
+    html.push(`<div style="margin-top:6px; color:var(--text-muted);">`
+      + `${fcvMoney(cur, fcv)} → <b>${fcvMoney('USD', usd)}</b> at rate ${rate} (${cur} per USD, source: ${rateSource==='manual'?'manual entry':'Org62 CurrencyType'})`
+      + `</div>`);
+  }
+  if (overGate) {
+    html.push(`<div style="margin-top:10px; color:#cf222e; font-weight:700;">🚨 FCV exceeds $100,000 USD — RevRec approval is required before this can proceed.</div>`);
+  }
+  el.innerHTML = html.join('');
+}
+initFcv();
 
 // ─────────────────────────────────────────────────────────────────
 // FETCH CONTRACTS (live Salesforce — replaces the manual SOQL/CSV flow)

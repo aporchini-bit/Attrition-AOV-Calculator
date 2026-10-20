@@ -248,6 +248,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_test_session()
             return
 
+        if path == '/currency-rate':
+            self.handle_currency_rate(qs)
+            return
+
         if path == '/resolve-contracts':
             self.handle_resolve_contracts(qs)
             return
@@ -275,6 +279,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'rops-calculator.html not found')
 
     # ── Endpoint handlers ──────────────────────────────────────────
+
+    def handle_currency_rate(self, qs):
+        """Look up Org62's daily conversion rate for an ISO currency code, used
+        by the FCV calculator to convert non-USD amounts to USD for the $100k
+        RevRec threshold. ConversionRate is foreign-currency-per-USD."""
+        sid = self.session_id()
+        if not sid:
+            self.send_json({'error': 'No session ID configured.'}, 401)
+            return
+        iso = (qs.get('iso') or [''])[0].strip().upper()
+        if not re.fullmatch(r'[A-Z]{3}', iso):
+            self.send_json({'error': 'iso must be a 3-letter currency code.'}, 400)
+            return
+        if iso == 'USD':
+            self.send_json({'iso': 'USD', 'rate': 1, 'source': 'org62'}, 200)
+            return
+        try:
+            soql = f"SELECT IsoCode, ConversionRate FROM CurrencyType WHERE IsoCode = '{soql_escape(iso)}'"
+            data = sf_query(sid, soql)
+            recs = data.get('records', [])
+            if not recs:
+                self.send_json({'error': f'Currency {iso} not found in Org62 CurrencyType.'}, 404)
+                return
+            self.send_json({'iso': iso, 'rate': recs[0].get('ConversionRate'), 'source': 'org62'}, 200)
+        except urllib.error.HTTPError as e:
+            self.handle_sf_error(e)
+        except Exception as e:
+            self.send_json({'error': str(e)}, 500)
 
     def handle_test_session(self):
         """Validates the saved session ID against Salesforce and returns a
