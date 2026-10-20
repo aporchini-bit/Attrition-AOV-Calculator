@@ -119,8 +119,18 @@ you'll paste a fresh one the same way.
 
 ## FCV — Full Cancellation Value
 
-The **FCV** section (below the quote comparison) is a manual calculator for KMOD
-RevRec decisions. Pick a mode and enter the values:
+The **FCV** section (below the quote comparison) calculates Full Cancellation Value
+for KMOD RevRec decisions.
+
+**Case lookup (optional):** enter a Salesforce Case number and click **Look up case**
+to pre-fill the effective date, currency, contract end date, contract AOV, and the
+reduction AOV (from the Case's Attrition Amount). Review and adjust the pre-filled
+values before calculating — e.g. for a reduction, use the reduced line's own end date
+if it differs from the contract end. If a field can't be found (some older contracts
+store a 0 AOV), it's left blank for you to enter. Needs a valid saved session.
+
+You can also skip the lookup and enter everything manually. Pick a mode and enter the
+values:
 
 - **Full cancellation** — AOV, effective date, end date. FCV = (AOV ÷ 360) × days
   remaining.

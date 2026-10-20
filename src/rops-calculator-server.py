@@ -252,6 +252,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_currency_rate(qs)
             return
 
+        if path == '/fcv-case':
+            self.handle_fcv_case(qs)
+            return
+
         if path == '/resolve-contracts':
             self.handle_resolve_contracts(qs)
             return
@@ -279,6 +283,52 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'rops-calculator.html not found')
 
     # ── Endpoint handlers ──────────────────────────────────────────
+
+    def handle_fcv_case(self, qs):
+        """Look up a Salesforce Case (by CaseNumber) and its related Contract to
+        pre-fill the FCV calculator: effective date, attrition amount, currency,
+        and the contract's end date + AOV."""
+        sid = self.session_id()
+        if not sid:
+            self.send_json({'error': 'No session ID configured.'}, 401)
+            return
+        raw = (qs.get('case') or [''])[0].strip()
+        if not raw:
+            self.send_json({'error': 'Enter a Case number.'}, 400)
+            return
+        # Accept a bare case number, or a Case record id (500...). Match on whichever.
+        if SF_ID_RE.match(raw):
+            where = f"Id = '{soql_escape(raw)}'"
+        else:
+            where = f"CaseNumber = '{soql_escape(raw)}'"
+        soql = (
+            "SELECT CaseNumber, Effective_Date__c, Attrition_Amount__c, CurrencyIsoCode, "
+            "Contract__c, Contract__r.ContractNumber, Contract__r.EndDate, "
+            "Contract__r.sfbase__AnnualContractValue__c, Contract__r.CurrencyIsoCode "
+            f"FROM Case WHERE {where} LIMIT 1"
+        )
+        try:
+            data = sf_query(sid, soql)
+            recs = data.get('records', [])
+            if not recs:
+                self.send_json({'error': f'Case {raw} not found (or not visible to your login).'}, 404)
+                return
+            c = recs[0]
+            contract = c.get('Contract__r') or {}
+            self.send_json({
+                'caseNumber': c.get('CaseNumber'),
+                'effectiveDate': c.get('Effective_Date__c'),
+                'attritionAmount': c.get('Attrition_Amount__c'),
+                'currency': c.get('CurrencyIsoCode') or contract.get('CurrencyIsoCode'),
+                'contractId': c.get('Contract__c'),
+                'contractNumber': contract.get('ContractNumber'),
+                'contractEndDate': contract.get('EndDate'),
+                'contractAOV': contract.get('sfbase__AnnualContractValue__c'),
+            }, 200)
+        except urllib.error.HTTPError as e:
+            self.handle_sf_error(e)
+        except Exception as e:
+            self.send_json({'error': str(e)}, 500)
 
     def handle_currency_rate(self, qs):
         """Look up Org62's daily conversion rate for an ISO currency code, used
