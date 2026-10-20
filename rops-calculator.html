@@ -141,6 +141,8 @@ table.pt td.sec { border-left: 2px solid var(--border-light); }
 table.pt td.edit-cell { padding: 3px 6px; min-width: 80px; }
 table.pt td.cancel-cell { padding: 3px 6px; min-width: 44px; text-align: center; }
 table.pt tr:hover td { background: #f8fafc; }
+table.pt a { color: #2563eb; text-decoration: none; }
+table.pt a:hover { text-decoration: underline; }
 table.pt tr.dpp-child td { background: #faf8ff; }
 table.pt tr.dpp-child:hover td { background: #f3eeff; }
 table.pt tr.dpp-parent td { background: #fdfbff; border-bottom: none; }
@@ -180,8 +182,11 @@ table.pt select.cs:disabled { background: #f3f4f6; color: var(--text-light); cur
 
 /* Scenario bar */
 .sc-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.sc-chip { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); cursor: pointer; background: #fff; transition: all .15s; }
+.sc-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); cursor: pointer; background: #fff; transition: all .15s; }
 .sc-chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.sc-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; font-size: 11px; line-height: 1; color: inherit; opacity: .55; cursor: pointer; }
+.sc-chip-x:hover { opacity: 1; background: rgba(0,0,0,.12); }
+.sc-chip.active .sc-chip-x:hover { background: rgba(255,255,255,.3); }
 
 .footnote { font-size: 10px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
 /* Salesforce renewal workspace */
@@ -389,6 +394,8 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
             <input style="width:100%;" id="sessionIdInput" type="password" placeholder="Paste your org62 session ID" autocomplete="off">
           </div>
           <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="saveSessionId()">Save session ID</button>
+          <button class="btn btn-secondary btn-sm" style="margin-top:8px;" onclick="testSession()">Test session</button>
+          <div id="sessionTestResult" style="margin-top:10px; white-space:pre-line;"></div>
         </div>
       </div>
     </div>
@@ -453,7 +460,7 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
           <table class="pt" id="productTable">
             <thead>
               <tr>
-                <th colspan="5" class="gh l">Product</th>
+                <th colspan="4" class="gh l">Product</th>
                 <th colspan="4" class="gh sec">Current</th>
                 <th colspan="3" class="gh sec">Your Changes</th>
                 <th colspan="3" class="gh sec">Attrition</th>
@@ -463,10 +470,9 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
               </tr>
               <tr>
                 <th class="l" style="min-width:180px">Product Name</th>
-                <th class="c" style="min-width:70px">SKU</th>
-                <th class="c" style="min-width:85px">Currency</th>
+                <th class="c" style="min-width:90px">Order Product #</th>
+                <th class="c" style="min-width:95px">Quote</th>
                 <th class="c" style="min-width:60px">Tags</th>
-                <th class="c" style="min-width:40px">Use?</th>
                 <th class="sec" style="min-width:70px">Avail Qty</th>
                 <th style="min-width:80px">List Rate</th>
                 <th style="min-width:80px">Unit Price</th>
@@ -567,6 +573,39 @@ const f = {
   n: (v,d=0) => v==null||isNaN(v) ? '—' : new Intl.NumberFormat('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}).format(v),
 };
 
+// HTML-escape for inline text injected into table cells.
+function escHtml(v) {
+  return String(v==null?'':v)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    .replaceAll('"','&quot;').replaceAll("'",'&#39;');
+}
+
+// Salesforce Lightning base for record links (org62).
+const SF_LIGHTNING = 'https://org62.lightning.force.com';
+
+// Render an Order Product number as a link to its OrderItem record.
+// Falls back to plain text (or a dash) when the id/number is missing.
+function orderProductLink(number, orderItemId) {
+  const num = (number==null?'':String(number)).trim();
+  const id  = (orderItemId==null?'':String(orderItemId)).trim();
+  if (!num) return '<span style="color:var(--text-muted)">—</span>';
+  if (!id)  return escHtml(num);
+  const url = `${SF_LIGHTNING}/lightning/r/OrderItem/${encodeURIComponent(id)}/view`;
+  return `<a href="${url}" target="_blank" rel="noopener" title="Open Order Product ${escHtml(num)} in Salesforce">${escHtml(num)}</a>`;
+}
+
+// Render the Quote (Apttus Proposal) a product belongs to, linked to the
+// Proposal record. Falls back to plain text / dash when missing.
+function quoteLink(name, proposalId) {
+  const nm = (name==null?'':String(name)).trim();
+  const id = (proposalId==null?'':String(proposalId)).trim();
+  if (!nm && !id) return '<span style="color:var(--text-muted)">—</span>';
+  const label = nm || id;
+  if (!id) return escHtml(label);
+  const url = `${SF_LIGHTNING}/lightning/r/Apttus_Proposal__Proposal__c/${encodeURIComponent(id)}/view`;
+  return `<a href="${url}" target="_blank" rel="noopener" title="Open Quote ${escHtml(label)} in Salesforce">${escHtml(label)}</a>`;
+}
+
 
 // Currency labels reflect source values; selecting a label never converts amounts.
 const currencyCodes = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : ['USD','MXN','EUR','GBP','CAD','AUD','JPY','CHF','BRL','INR','CNY'];
@@ -634,7 +673,8 @@ async function apiGet(path) {
 async function checkSession() {
   try {
     const health = await apiGet('/health');
-    document.getElementById('sessionSetup').style.display = health.configured ? 'none' : '';
+    // Always keep the box visible so a saved-but-invalid token can be re-pasted and tested.
+    document.getElementById('sessionSetup').style.display = '';
     if (!health.configured) {
       showBanner('sessionBanner','warn','No Salesforce session ID saved yet — paste one below before fetching.');
     }
@@ -653,12 +693,44 @@ async function saveSessionId() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Could not save session ID.');
-    document.getElementById('sessionSetup').style.display = 'none';
     document.getElementById('sessionIdInput').value = '';
     showBanner('sessionBanner','success','✓ Session ID saved.');
+    testSession();   // immediately verify against Salesforce
   } catch (e) {
     showBanner('sessionBanner','error', e.message);
   }
+}
+async function testSession() {
+  const el = document.getElementById('sessionTestResult');
+  el.textContent = 'Testing…';
+  el.style.color = '';
+  try {
+    const r = await testSessionRequest();
+    if (r.verdict === 'valid') {
+      el.style.color = '#1a7f37';
+      el.textContent = `${r.message} (token length ${r.sidLength})`;
+    } else if (r.verdict === 'no_session') {
+      el.style.color = '#9a6700';
+      el.textContent = r.message;
+    } else if (r.verdict === 'rejected') {
+      el.style.color = '#cf222e';
+      el.textContent =
+        `${r.message}\nInstance: ${r.instance}\nSaved token length: ${r.sidLength}\n` +
+        (r.errorCode === 'INVALID_SESSION_ID'
+          ? 'Cause: the token is wrong-domain, truncated, or expired. Copy the FULL sid cookie from org62.my.salesforce.com (not lightning.force.com), including everything after the "!", then Save again.'
+          : 'See the errorCode above.');
+    } else {
+      el.style.color = '#cf222e';
+      el.textContent = r.message;
+    }
+  } catch (e) {
+    el.style.color = '#cf222e';
+    el.textContent = 'Could not run test: ' + e.message;
+  }
+}
+async function testSessionRequest() {
+  const res = await fetch(API_BASE + '/test-session');
+  return res.json();
 }
 checkSession();
 
@@ -830,6 +902,9 @@ function mapCSVRow(row, model, headers) {
       incrementalUpliftACV:     getNum('AssetOrderLine__r.Incremental_Uplift_ACV__c'),
       eligibleAutoRenewUplift:  getBool('AssetOrderLine__r.Eligible_For_Auto_Renew_Uplift__c'),
       bookingsTreatment:        get('AssetOrderLine__r.Bookings_Treatment__c') || '',
+      quoteLineId:              (get('AssetOrderLine__r.RelatedQuoteLine__c') || '').trim(),
+      quoteId:                  (get('AssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__c') || '').trim(),
+      quoteName:                get('AssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__r.Name') || '',
       dppContribItemId:         get('ContributingProductAsset__r.Id') || '',
       dppContribItemName:       get('ContributingProductAsset__r.Name') || '',
       dppContribOrderItemId:    (get('ContributingProductAsset__r.AssetOrderLine__c') || '').trim(),
@@ -870,6 +945,9 @@ function mapCSVRow(row, model, headers) {
       incrementalUpliftACV:     getNum('SfdcAssetOrderLine__r.Incremental_Uplift_ACV__c'),
       eligibleAutoRenewUplift:  getBool('SfdcAssetOrderLine__r.Eligible_For_Auto_Renew_Uplift__c'),
       bookingsTreatment:        get('SfdcAssetOrderLine__r.Bookings_Treatment__c') || '',
+      quoteLineId:              (get('SfdcAssetOrderLine__r.RelatedQuoteLine__c') || '').trim(),
+      quoteId:                  (get('SfdcAssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__c') || '').trim(),
+      quoteName:                get('SfdcAssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__r.Name') || '',
       dppContribItemId:         get('SfdcContributingProductAssetId__r.Id') || '',
       dppContribItemName:       get('SfdcContributingProductAssetId__r.Name') || '',
       dppContribOrderItemId:    (get('SfdcContributingProductAssetId__r.SfdcAssetOrderLine__r.Id') || '').trim(),
@@ -1344,9 +1422,9 @@ function renderSummary(s) {
     { lbl:'Beginning Attrition', val: f.$(s.totalAsIsAttrition), cls: s.totalAsIsAttrition < -1 ? 'neg' : 'muted' },
     { lbl:'Min Renewal AOV',   val: f.$(s.totalMinAOV), cls: s.totalMinAOV < s.totalCurrentAOV ? 'neg' : 'pos' },
     { lbl:'Max Renewal AOV',   val: f.$(s.totalMaxAOV), cls: s.totalMaxAOV < s.totalCurrentAOV ? 'neg' : 'pos' },
-    { lbl:'Min Attrition',     val: f.$(s.minAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.minAttritionPct), cls: s.minAttrition < -1 ? 'neg' : 'muted' },
-    { lbl:'Max Attrition',     val: f.$(s.maxAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.maxAttritionPct), cls: s.maxAttrition < -1 ? 'neg' : 'muted' },
-    { lbl:'Attrition Saved',   val: f.$(s.minAttritionSaved), cls: s.minAttritionSaved > 0 ? 'pos' : 'muted' },
+    { lbl:'Min attrition saved',     val: f.$(s.minAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.minAttritionPct), cls: s.minAttrition < -1 ? 'neg' : 'muted' },
+    { lbl:'Max attrition saved',     val: f.$(s.maxAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.maxAttritionPct), cls: s.maxAttrition < -1 ? 'neg' : 'muted' },
+    { lbl:'Max potential Attrition saved',   val: f.$(s.minAttritionSaved), cls: s.minAttritionSaved > 0 ? 'pos' : 'muted' },
     { lbl:'Full Cancels',      val: s.fullCancelCount, cls: s.fullCancelCount > 0 ? 'neg' : 'muted' },
   ];
   document.getElementById('summaryGrid').innerHTML = metrics.map(m =>
@@ -1413,8 +1491,9 @@ function renderTable(rows, summary) {
 
     // Tags
     const tags = [
-      row.isDPPOwner ? '<span class="tag tag-dpp">DPP plan</span>' : '',
-      isParent ? `<span class="tag" style="background:#ede9fe;color:#6d28d9;">DPP↑</span>` : '',
+      row.isDPPOwner ? '<span class="tag tag-dpp">DPP Provisioning line</span>' : '',
+      isParent ? `<span class="tag" style="background:#ede9fe;color:#6d28d9;">Has DPP's</span>` : '',
+      isDPP ? '<span class="tag tag-dpp">DPP fee</span>' : '',
       row.r.phaseOutStatus ? `<span class="tag tag-phase">${row.r.phaseOutStatus}</span>` : '',
     ].filter(Boolean).join(' ');
 
@@ -1430,8 +1509,16 @@ function renderTable(rows, summary) {
     // Product name cell: tree connector for DPP children
     let nameCell;
     if (isDPP) {
-      const parentName = parentRow ? parentRow.r.productName : row.dppContribOIId;
-      const shortParent = parentName.length > 28 ? parentName.slice(0,26)+'…' : parentName;
+      // Derived-from label now shows the PARENT's Order Product # (linked to its
+      // OrderItem). If the parent isn't in this contract's data, fall back to the
+      // raw contributing order-item id as plain text.
+      let derivedLabel;
+      if (parentRow && parentRow.r.orderItemNumber) {
+        derivedLabel = `↳ Derived from ${orderProductLink(parentRow.r.orderItemNumber, parentRow.r.orderItemId)}`;
+      } else {
+        derivedLabel = `↳ Derived from ${escHtml(row.dppContribOIId || '—')}`;
+      }
+      const derivedTitle = parentRow ? `Derived from Order Product ${parentRow.r.orderItemNumber||''}` : 'Derived-from parent not in this contract';
       nameCell = `
         <div class="dpp-indent">
           <div class="dpp-connector">
@@ -1442,7 +1529,7 @@ function renderTable(rows, summary) {
             <div style="font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${row.r.productName}">
               ${row.r.productName}${row.isUsage ? ' <span class="tag tag-usage">USAGE</span>' : ''}
             </div>
-            <div class="dpp-parent-label" title="Derived from: ${parentName}">↳ ${shortParent}</div>
+            <div class="dpp-parent-label" title="${derivedTitle}">${derivedLabel}</div>
           </div>
         </div>`;
     } else {
@@ -1481,10 +1568,9 @@ function renderTable(rows, summary) {
 
     return `<tr class="${cls}" data-idx="${idx}">
       <td class="l">${nameCell}</td>
-      <td class="c" style="font-size:10px;color:var(--text-muted)">${row.r.skuNumber||'—'}</td>
-      <td class="c">${rowCurrency(row)||'Not specified'}</td>
+      <td class="c" style="font-size:10px;">${orderProductLink(row.r.orderItemNumber, row.r.orderItemId)}</td>
+      <td class="c" style="font-size:10px;">${quoteLink(row.r.quoteName, row.r.quoteId)}</td>
       <td class="c">${tags}</td>
-      <td class="c">${row.isUsage ? '✓' : ''}</td>
       <td class="sec">${f.n(row.availQty)}</td>
       <td>${money(row.listRateAdj)}</td>
       <td>${money(row.currentPPU)}</td>
@@ -1515,7 +1601,7 @@ function renderTable(rows, summary) {
   const tMin = rows.reduce((s,r)=>s+r.outputMinAOV,0);
   const tMax = rows.reduce((s,r)=>s+r.outputMaxAOV,0);
   tbody.innerHTML += `<tr class="total-row">
-    <td class="l" colspan="5">TOTAL · ${S.currency==='MIXED'?'Mixed currencies':S.currency||'Currency not specified'}</td>
+    <td class="l" colspan="4">TOTAL · ${S.currency==='MIXED'?'Mixed currencies':S.currency||'Currency not specified'}</td>
     <td class="sec" colspan="3">—</td>
     <td><b>${f.$(tCur,2)}</b></td>
     <td class="sec" colspan="3">—</td>
@@ -1618,8 +1704,25 @@ function loadScenario(i) {
 }
 function renderScenarios() {
   document.getElementById('scBar').innerHTML = S.scenarios.map((sc,i) =>
-    `<span class="sc-chip ${S.activeScenario===i?'active':''}" onclick="loadScenario(${i})">${qEsc(sc.name)}</span>`
+    `<span class="sc-chip ${S.activeScenario===i?'active':''}" onclick="loadScenario(${i})">`
+    + `<span>${qEsc(sc.name)}</span>`
+    + `<span class="sc-chip-x" title="Delete scenario" onclick="deleteScenario(${i}, event)">✕</span>`
+    + `</span>`
   ).join('');
+}
+function deleteScenario(i, event) {
+  if (event) event.stopPropagation();   // don't trigger loadScenario on the chip
+  S.scenarios.splice(i, 1);
+  // Keep the active-scenario pointer consistent after the indices shift.
+  if (S.activeScenario === i) {
+    S.activeScenario = null;             // deleted the active one
+  } else if (S.activeScenario != null && S.activeScenario > i) {
+    S.activeScenario -= 1;
+  }
+  renderScenarios();
+  if (!S.scenarios.length) {
+    document.getElementById('scenarioCard').style.display = 'none';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1627,14 +1730,14 @@ function renderScenarios() {
 // ─────────────────────────────────────────────────────────────────
 function exportCSV() {
   if (!S.rows.length) { appNotice('No data to export.'); return; }
-  const hdrs = ['Product Name','SKU','Order Item ID','Currency','Usage','Avail Qty','List Rate','Unit Price',
+  const hdrs = ['Product Name','Order Product #','Order Item ID','Quote','Currency','Usage','Avail Qty','List Rate','Unit Price',
     'Current AOV','Full Cancel','New Qty','New Price','Priced Down · Deal Desk Review','Qty Reduction','As-is Attrition',
     'Updated AOV','Min PPU','Min AOV','Max PPU','Max AOV','Uplift AOV','Uplift %','Added Qty','Added AOV'];
   const rows = [hdrs.join(',')];
   S.rows.forEach(row => {
     const ov = S.overrides[row.idx] || {};
     rows.push([
-      `"${row.r.productName}"`, row.r.skuNumber, row.orderItemId, rowCurrency(row)||'Not specified',
+      `"${row.r.productName}"`, `"${row.r.orderItemNumber||''}"`, row.orderItemId, `"${row.r.quoteName||''}"`, rowCurrency(row)||'Not specified',
       row.isUsage?'Yes':'No', row.availQty,
       row.listRateAdj.toFixed(2), row.currentPPU.toFixed(2), row.currentAOV.toFixed(2),
       row.fullCancel?'Yes':'No', row.newQty, ov.newPrice??'', row.pricedDown?'Yes':'No',

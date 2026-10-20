@@ -15,7 +15,7 @@ import urllib.request
 import urllib.parse
 import urllib.error
 
-PORT = 8766
+PORT = int(os.environ.get('ROPS_PORT', '8766'))
 SCRIPT_DIR  = os.path.dirname(os.path.abspath(__file__))
 HTML_FILE   = os.path.join(SCRIPT_DIR, 'rops-calculator.html')
 CONFIG_FILE = os.path.join(SCRIPT_DIR, 'rops-calculator-config.json')
@@ -58,6 +58,9 @@ NQE_FIELDS = """Id,
   AssetOrderLine__r.Incremental_Uplift_ACV__c,
   AssetOrderLine__r.Eligible_For_Auto_Renew_Uplift__c,
   AssetOrderLine__r.Bookings_Treatment__c,
+  AssetOrderLine__r.RelatedQuoteLine__c,
+  AssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__c,
+  AssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__r.Name,
   ContributingProductAsset__r.Id,
   ContributingProductAsset__r.Name,
   ContributingProductAsset__r.AssetOrderLine__c,
@@ -96,6 +99,9 @@ APTTUS_FIELDS = """Id,
   SfdcAssetOrderLine__r.Incremental_Uplift_ACV__c,
   SfdcAssetOrderLine__r.Eligible_For_Auto_Renew_Uplift__c,
   SfdcAssetOrderLine__r.Bookings_Treatment__c,
+  SfdcAssetOrderLine__r.RelatedQuoteLine__c,
+  SfdcAssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__c,
+  SfdcAssetOrderLine__r.RelatedQuoteLine__r.Apttus_Proposal__Proposal__r.Name,
   SfdcContributingProductAssetId__r.Id,
   SfdcContributingProductAssetId__r.Name,
   SfdcContributingProductAssetId__r.SfdcAssetOrderLine__r.Id,
@@ -238,6 +244,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_json({'ok': True, 'configured': bool(self.session_id())})
             return
 
+        if path == '/test-session':
+            self.handle_test_session()
+            return
+
         if path == '/resolve-contracts':
             self.handle_resolve_contracts(qs)
             return
@@ -265,6 +275,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'rops-calculator.html not found')
 
     # ── Endpoint handlers ──────────────────────────────────────────
+
+    def handle_test_session(self):
+        """Validates the saved session ID against Salesforce and returns a
+        clear verdict (valid / invalid / API-disabled), including the raw
+        Salesforce errorCode so failures are self-explanatory."""
+        sid = self.session_id()
+        if not sid:
+            self.send_json({'ok': False, 'verdict': 'no_session',
+                            'message': 'No session ID saved yet. Paste one in Step 1 and click Save first.'}, 200)
+            return
+        try:
+            url = f'{INSTANCE_URL}/services/data/{API_VERSION}/limits'
+            req = urllib.request.Request(url, headers={'Authorization': f'Bearer {sid}'})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                json.loads(resp.read())
+            self.send_json({'ok': True, 'verdict': 'valid',
+                            'message': f'✓ Session is valid — connected to {INSTANCE_URL}.',
+                            'instance': INSTANCE_URL, 'sidLength': len(sid)}, 200)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')
+            code = ''
+            try:
+                parsed = json.loads(body)
+                if isinstance(parsed, list) and parsed:
+                    code = parsed[0].get('errorCode', '')
+            except Exception:
+                pass
+            print(f'[test-session] SF {e.code} {code}: {body[:200]}')
+            self.send_json({'ok': False, 'verdict': 'rejected',
+                            'httpStatus': e.code, 'errorCode': code,
+                            'message': f'Salesforce rejected the token (HTTP {e.code}, {code or "unknown"}).',
+                            'instance': INSTANCE_URL, 'sidLength': len(sid),
+                            'raw': body[:300]}, 200)
+        except Exception as e:
+            self.send_json({'ok': False, 'verdict': 'error',
+                            'message': f'Could not reach Salesforce: {e}',
+                            'instance': INSTANCE_URL}, 200)
 
     def handle_resolve_contracts(self, qs):
         sid = self.session_id()
