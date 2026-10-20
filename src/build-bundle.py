@@ -11,9 +11,9 @@ The HTML is embedded (base64) and served from memory, so no sibling files are
 needed. The session-ID config is stored in the user's home folder so the lone
 file works from anywhere (e.g. ~/Downloads).
 
-Regenerate whenever you edit the HTML or the server:
+Regenerate whenever you edit the HTML or the server (from the repo root):
 
-    python3 build-bundle.py
+    python3 src/build-bundle.py
 """
 import base64
 import os
@@ -21,9 +21,10 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(HERE)          # src/ lives one level under the repo root
 SERVER_SRC = os.path.join(HERE, 'rops-calculator-server.py')
 HTML_SRC = os.path.join(HERE, 'rops-calculator.html')
-OUT_DIR = os.path.join(HERE, 'dist')
+OUT_DIR = os.path.join(REPO_ROOT, 'dist')  # bundle stays at repo-root dist/
 OUT_FILE = os.path.join(OUT_DIR, 'rops-calculator.py')
 
 

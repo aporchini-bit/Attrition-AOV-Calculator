@@ -88,13 +88,13 @@ you'll paste a fresh one the same way.
 
 ## For maintainers
 
-- **Edit the source**, not the bundle:
-  - `rops-calculator.html` — the UI
-  - `rops-calculator-server.py` — the backend/API
-- **Rebuild the single file** after any change:
+- **Edit the source** in `src/`, not the bundle:
+  - `src/rops-calculator.html` — the UI
+  - `src/rops-calculator-server.py` — the backend/API
+- **Rebuild the single file** after any change (from the repo root):
 
   ```bash
-  python3 build-bundle.py
+  python3 src/build-bundle.py
   ```
 
   This regenerates `dist/rops-calculator.py` from the two source files. Commit
