@@ -2038,6 +2038,16 @@ function renderTable(rows, summary) {
         `${noPrice} line${noPrice===1?'':'s'} have no unit price in Salesforce and contribute $0 — check those products' pricing if the total looks low.`
       );
     }
+    // Added licenses -> flag that a one-time discount may require Deal Desk revision.
+    const addedLines = rows.filter(r => (r.addedQty || 0) > 0);
+    if (addedLines.length > 0) {
+      const addedTotal = addedLines.reduce((s,r) => s + r.addedQty, 0);
+      dataNotices.push(
+        `<b>You've added ${f.n(addedTotal)} license${addedTotal===1?'':'s'}.</b> Added licenses are priced at the current rate. `
+        + `If a <b>one-time discount</b> was applied to the original order, the additional-license pricing may need to be revised — `
+        + `reach out to <b>Deal Desk</b> to revise the additional-license approval before proposing it to the customer.`
+      );
+    }
   }
 
   document.getElementById('warningsArea').innerHTML =
