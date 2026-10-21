@@ -20,6 +20,12 @@ echo Starting ROPS Attrition ^& AOV Calculator...
 echo (Leave this window open while you use the tool. Close it when done.)
 echo.
 
+rem Stop any old instance still holding port 8766 so you always get the latest version.
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8766 " ^| findstr LISTENING') do (
+  echo Stopping an earlier calculator still running on port 8766...
+  taskkill /F /PID %%P >nul 2>&1
+)
+
 start "" /min cmd /c "timeout /t 2 >nul && start http://localhost:8766"
 "%PY%" ..\dist\rops-calculator.py
 
