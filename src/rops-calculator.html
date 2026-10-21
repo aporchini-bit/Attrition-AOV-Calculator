@@ -2010,9 +2010,40 @@ function renderTable(rows, summary) {
     <td class="sec" colspan="2">—</td>
   </tr>`;
 
+  // ── Data notices: flag known, non-bug data conditions so a $0 / odd result
+  //    is explained rather than mistaken for a calculator bug. ──────────────
+  const dataNotices = [];
+  const lineCount = rows.length;
+  if (lineCount > 0) {
+    const zeroAvail = rows.filter(r => (r.availQty || 0) === 0).length;
+    const anyOriginalQty = rows.some(r => (r.r.quantity || 0) > 0);
+    // All (or nearly all) lines have 0 available quantity -> AOV computes to 0.
+    if (zeroAvail === lineCount && tCur === 0) {
+      dataNotices.push(
+        `<b>Current AOV shows $0 because every order line has an Available Quantity of 0 in Salesforce.</b> `
+        + (anyOriginalQty
+            ? `These lines carry an original ordered quantity, but their <i>available</i> (currently-active) quantity is 0 — usually because the seats were superseded, migrated, or rolled into renewal lines (common on migrated product families like Tableau Cloud). `
+            : ``)
+        + `This is a data condition in org62, not a calculation error — the contract-level value may still be non-zero. Verify against the contract/order in Salesforce.`
+      );
+    } else if (zeroAvail > 0) {
+      dataNotices.push(
+        `${zeroAvail} of ${lineCount} line${lineCount===1?'':'s'} have an Available Quantity of 0 and contribute $0 to AOV — these are typically superseded/renewed lines, not an error.`
+      );
+    }
+    // Lines missing a unit price -> also yield 0 for that line.
+    const noPrice = rows.filter(r => !(r.unitPrice > 0) && !r.isDPP).length;
+    if (noPrice > 0 && noPrice < lineCount) {
+      dataNotices.push(
+        `${noPrice} line${noPrice===1?'':'s'} have no unit price in Salesforce and contribute $0 — check those products' pricing if the total looks low.`
+      );
+    }
+  }
+
   document.getElementById('warningsArea').innerHTML =
     (dealDeskAlerts.length ? `<div class="banner banner-error">🛑 <div><b>Deal Desk review required</b> — this contract has downward repricing that must be reviewed before being proposed to the customer:<ul style="margin:4px 0 0 18px;">${dealDeskAlerts.map(w=>`<li>${w}</li>`).join('')}</ul></div></div>` : '') +
-    (warnings.length ? warnings.map(w=>`<div class="banner banner-warn">⚠ ${w}</div>`).join('') : '');
+    (warnings.length ? warnings.map(w=>`<div class="banner banner-warn">⚠ ${w}</div>`).join('') : '') +
+    (dataNotices.length ? `<div class="banner banner-info" style="align-items:flex-start;"><span>ℹ️</span><div><b>Data notices</b> — why some figures look the way they do (not calculator bugs):<ul style="margin:4px 0 0 18px; font-weight:400;">${dataNotices.map(n=>`<li style="margin-bottom:4px;">${n}</li>`).join('')}</ul></div></div>` : '');
 
   document.getElementById('tableFootnote').innerHTML = `
     <div class="footnote">
