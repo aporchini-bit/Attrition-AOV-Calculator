@@ -122,6 +122,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .metric .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
 .metric .val { font-size: 17px; font-weight: 700; margin-top: 3px; }
 .metric .sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.metric-info { display:inline-block; margin-left:3px; color:var(--text-muted); cursor:help; font-weight:400; opacity:.65; }
+.metric-info:hover, .metric-info:focus { opacity:1; color:var(--blue); outline:none; }
 .neg { color: var(--red); }
 .pos { color: var(--green); }
 .muted { color: var(--text-muted); }
@@ -452,6 +454,10 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
             <label for="scenarioName" style="font-size:12px">Scenario name</label><input id="scenarioName" type="text" maxlength="100" placeholder="Optional name" style="width:150px;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:6px"><button class="btn btn-secondary btn-sm" onclick="saveScenario()">Save scenario</button>
             <button class="btn btn-secondary btn-sm" onclick="exportCSV()">Export results</button>
           </div>
+        </div>
+        <div class="field-group" style="margin-top:14px;">
+          <label for="renewalNotes">Renewal Notes <span style="color:var(--text-muted); font-weight:400;">— saved with each scenario version</span></label>
+          <textarea id="renewalNotes" rows="3" placeholder="Notes for this version — e.g. assumptions, approvals needed, who to follow up with…" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
         </div>
       </div>
     </div>
@@ -1813,18 +1819,26 @@ function recalcRender() {
 
 function renderSummary(s) {
   const metrics = [
-    { lbl:'Current AOV',       val: f.$(s.totalCurrentAOV),    sub:'' },
-    { lbl:'Beginning Attrition', val: f.$(s.totalAsIsAttrition), cls: s.totalAsIsAttrition < -1 ? 'neg' : 'muted' },
-    { lbl:'Min Renewal AOV',   val: f.$(s.totalMinAOV), cls: s.totalMinAOV < s.totalCurrentAOV ? 'neg' : 'pos' },
-    { lbl:'Max Renewal AOV',   val: f.$(s.totalMaxAOV), cls: s.totalMaxAOV < s.totalCurrentAOV ? 'neg' : 'pos' },
-    { lbl:'Min attrition saved',     val: f.$(s.minAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.minAttritionPct), cls: s.minAttrition < -1 ? 'neg' : 'muted' },
-    { lbl:'Max attrition saved',     val: f.$(s.maxAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.maxAttritionPct), cls: s.maxAttrition < -1 ? 'neg' : 'muted' },
-    { lbl:'Max potential Attrition saved',   val: f.$(s.minAttritionSaved), cls: s.minAttritionSaved > 0 ? 'pos' : 'muted' },
-    { lbl:'Full Cancels',      val: s.fullCancelCount, cls: s.fullCancelCount > 0 ? 'neg' : 'muted' },
+    { lbl:'Current AOV',       val: f.$(s.totalCurrentAOV),    sub:'',
+      tip:'Current Annual Order Value — the contract\'s existing annual recurring value across all order lines, before any of your changes.' },
+    { lbl:'Beginning Attrition', val: f.$(s.totalAsIsAttrition), cls: s.totalAsIsAttrition < -1 ? 'neg' : 'muted',
+      tip:'Attrition already baked into the current contract before you make changes (e.g. lines ending or priced below list). Negative = value being lost.' },
+    { lbl:'Min Renewal AOV',   val: f.$(s.totalMinAOV), cls: s.totalMinAOV < s.totalCurrentAOV ? 'neg' : 'pos',
+      tip:'The lower end of the modeled renewal value after your changes — the most conservative annual value (volume tiers, attrition allocation, DPP, uplift all applied).' },
+    { lbl:'Max Renewal AOV',   val: f.$(s.totalMaxAOV), cls: s.totalMaxAOV < s.totalCurrentAOV ? 'neg' : 'pos',
+      tip:'The upper end of the modeled renewal value after your changes — the most favorable annual value within the allowed pricing range.' },
+    { lbl:'Min attrition saved',     val: f.$(s.minAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.minAttritionPct), cls: s.minAttrition < -1 ? 'neg' : 'muted',
+      tip:'Change in annual value vs. current at the Min Renewal scenario, with its % of current AOV. Negative = net value lost at the conservative end.' },
+    { lbl:'Max attrition saved',     val: f.$(s.maxAttrition), sub: S.currency==='MIXED' ? '' : f.pct(s.maxAttritionPct), cls: s.maxAttrition < -1 ? 'neg' : 'muted',
+      tip:'Change in annual value vs. current at the Max Renewal scenario, with its % of current AOV. Negative = net value lost at the favorable end.' },
+    { lbl:'Max potential Attrition saved',   val: f.$(s.minAttritionSaved), cls: s.minAttritionSaved > 0 ? 'pos' : 'muted',
+      tip:'Attrition avoided by your changes compared with letting the contract attrite as-is — how much value your adjustments protect.' },
+    { lbl:'Full Cancels',      val: s.fullCancelCount, cls: s.fullCancelCount > 0 ? 'neg' : 'muted',
+      tip:'Number of product lines marked as fully canceled in this scenario.' },
   ];
   document.getElementById('summaryGrid').innerHTML = metrics.map(m =>
     `<div class="metric">
-      <div class="lbl">${m.lbl}</div>
+      <div class="lbl">${m.lbl}${m.tip ? ` <span class="metric-info" tabindex="0" role="img" aria-label="${escHtml(m.tip)}" title="${escHtml(m.tip)}">ⓘ</span>` : ''}</div>
       <div class="val ${m.cls||''}">${m.val}</div>
       ${m.sub ? `<div class="sub">${m.sub}</div>` : ''}
     </div>`
@@ -2122,6 +2136,7 @@ function saveScenario() {
   const name = field.value.trim() || `Scenario ${S.scenarios.length+1}`;
   field.value = '';
   S.scenarios.push({ name, customerHealth: S.customerHealth, priceCapPct: S.priceCapPct, currencyOverride:S.currencyOverride, contractPeriod:S.contractPeriod,
+    notes: (document.getElementById('renewalNotes') || {}).value || '',
     overrides: JSON.parse(JSON.stringify(S.overrides)) });
   renderScenarios();
   document.getElementById('scenarioCard').style.display = '';
@@ -2134,6 +2149,8 @@ function loadScenario(i) {
   S.priceCapPct    = sc.priceCapPct;
   S.currencyOverride = sc.currencyOverride||'';
   document.getElementById('pcLive').value = sc.priceCapPct;
+  const notesEl = document.getElementById('renewalNotes');
+  if (notesEl) notesEl.value = sc.notes || '';
   S.activeScenario = i;
   if (S.rawRows.length) recalcRender();
   renderScenarios();
