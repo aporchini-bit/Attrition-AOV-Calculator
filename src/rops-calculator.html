@@ -543,8 +543,15 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
           <span id="qFetchStatus" style="font-size:12px;color:var(--text-muted);"></span>
         </div>
         <div id="qModeRow" style="display:none;margin-top:18px;padding-top:14px;border-top:1px solid var(--border-light)">
-          <b>Amendment — quote replaces the contract</b>
-          <p class="hint" style="margin-top:8px;white-space:normal">Positive quote lines define the new quantities and prices. Negative lines remove the previous position. Products missing from this replacement quote are canceled. Use the full replacement quote export.</p>
+          <div class="field-group" style="max-width:320px;">
+            <label for="qModeSelect">Quote type</label>
+            <select id="qModeSelect" class="w140" style="width:100%;" onchange="setQuoteMode(this.value)">
+              <option value="replacement">Replacement / amendment quote</option>
+              <option value="swap">Swap quote</option>
+            </select>
+          </div>
+          <p class="hint" id="qModeHintReplacement" style="margin-top:8px;white-space:normal">Positive quote lines define the new quantities and prices. Negative lines remove the previous position. Products missing from this replacement quote are canceled. Use the full replacement quote export.</p>
+          <p class="hint" id="qModeHintSwap" style="margin-top:8px;white-space:normal;display:none">Negative lines are what's being <b>swapped out</b>; positive lines are what's being <b>swapped in</b> (often at a different price). Shows the swap's AOV (out / in / net) and the contract AOV after the swap.</p>
         </div>
         <div id="qPeriodRow" style="display:none;margin-top:16px">
           <label>Quote service period</label>
@@ -554,7 +561,7 @@ table.pt input.ci{height:34px;border-radius:6px;border-color:#abc9e2;background:
       </div>
       <div id="qResults" style="display:none">
         <div class="card-body"><div class="summary-grid" id="qSummary"></div></div>
-        <div class="table-wrap"><table class="pt q-simple-table"><thead><tr><th class="l" rowspan="2">Product</th><th class="q-contract-header" colspan="3">Previous contract</th><th class="q-quote-header" colspan="3">Quote — final position</th><th class="q-change-header" colspan="3">Difference</th></tr><tr><th>Qty</th><th>Unit price</th><th>AOV</th><th>Qty</th><th>Unit price</th><th>AOV</th><th>Qty change</th><th>Price change</th><th>AOV change</th></tr></thead><tbody id="qRows"></tbody></table></div>
+        <div class="table-wrap"><table class="pt q-simple-table"><thead id="qTheadReplacement"><tr><th class="l" rowspan="2">Product</th><th class="q-contract-header" colspan="3">Previous contract</th><th class="q-quote-header" colspan="3">Quote — final position</th><th class="q-change-header" colspan="3">Difference</th></tr><tr><th>Qty</th><th>Unit price</th><th>AOV</th><th>Qty</th><th>Unit price</th><th>AOV</th><th>Qty change</th><th>Price change</th><th>AOV change</th></tr></thead><thead id="qTheadSwap" style="display:none"><tr><th class="l" rowspan="2">Product</th><th class="q-contract-header" colspan="2">Swapped out</th><th class="q-quote-header" colspan="2">Swapped in</th><th class="q-change-header" rowspan="2">Net AOV</th></tr><tr><th>Qty</th><th>AOV</th><th>Qty</th><th>AOV</th></tr></thead><tbody id="qRows"></tbody></table></div>
         <div class="footnote" style="padding:16px">The quote replaces the selected contract period. Positive quote lines define the final position; negative lines represent removals and are excluded from replacement AOV. Missing products are canceled. Highlighted cells show changes; open product details for source lines and pricing exceptions. No currency conversion is performed.</div>
       </div>
     </div>
@@ -2264,6 +2271,9 @@ async function fetchQuote(){
   document.getElementById('qResults').style.display='none';
   document.getElementById('qModeRow').style.display='none';
   QC.lines=[];QC.period='';QC.roles={};QC.result=null;QC.mode='replacement';document.getElementById('qPeriodRow').style.display='none';
+  { const sel=document.getElementById('qModeSelect'); if(sel) sel.value='replacement';
+    const rep=document.getElementById('qModeHintReplacement'), sw=document.getElementById('qModeHintSwap');
+    if(rep) rep.style.display=''; if(sw) sw.style.display='none'; }
   status.textContent='Fetching quote lines…';
 
   try{
@@ -2305,8 +2315,34 @@ function setupQuotePeriods(){
 function qRole(key,value){QC.roles[key]=value;renderQuoteComparison();}
 function qMoney(v,c){return f.$(v,2,c);}
 function computeQuoteComparison(){
- if(!S.rawRows.length)throw Error('Load the contract assets and select a contract period first.');
  if(!QC.lines.length)throw Error('Import a QuoteLineItem CSV to compare the actual quote.');
+
+ // ── Swap mode: self-contained, computed from the quote's own +/- lines. ──
+ // Works with or without a contract loaded; the contract-after total needs one.
+ if(QC.mode==='swap'){
+   const sPeriod=QC.period||latestPeriod([...new Set(QC.lines.map(qPeriod))]);
+   const sLines=QC.lines.filter(l=>qPeriod(l)===sPeriod);
+   if(!sLines.length)throw Error('Choose a quote service period to compare.');
+   const sCur=[...new Set(sLines.map(l=>l.currencyCode))];
+   if(sCur.length!==1||!sCur[0])throw Error('Quote lines must use one known currency.');
+   const g=new Map();
+   sLines.forEach(l=>{const key=qKey(l)||('name:'+l.productName);if(!g.has(key))g.set(key,{key,name:l.productName,quotes:[]});g.get(key).quotes.push(l);});
+   const swapRows=[...g.values()].map(grp=>{
+     const outQty=grp.quotes.reduce((s,l)=>s+(l.quantity<0?-l.quantity:0),0);
+     const inQty =grp.quotes.reduce((s,l)=>s+(l.quantity>0? l.quantity:0),0);
+     const outAOV=grp.quotes.reduce((s,l)=>s+(l.quantity<0?-l.annualValue:0),0);
+     const inAOV =grp.quotes.reduce((s,l)=>s+(l.quantity>0? l.annualValue:0),0);
+     return {key:grp.key,name:grp.name,outQty,inQty,outAOV,inAOV,netAOV:inAOV-outAOV};
+   }).filter(r=>r.outQty>0||r.inQty>0||Math.abs(r.netAOV)>0.005);
+   const swapIn=swapRows.reduce((s,r)=>s+r.inAOV,0),swapOut=swapRows.reduce((s,r)=>s+r.outAOV,0);
+   const hasContract=S.rawRows.length>0;
+   let contractCurrent=0;
+   if(hasContract){const modeled=calcAll(S.rawRows,{customerHealth:S.customerHealth,priceCapPct:S.priceCapPct},S.overrides).rows;contractCurrent=modeled.reduce((s,row)=>s+row.currentAOV,0);}
+   const swap={rows:swapRows,in:swapIn,out:swapOut,net:swapIn-swapOut,hasContract,contractCurrent,contractAfter:contractCurrent+(swapIn-swapOut)};
+   return {currency:sCur[0],rows:[],summary:{base:0,final:0,loss:0,growth:0,modelMin:0,modelMax:0,net:0,netLoss:0,offset:0},swap,issues:[],quotePeriod:sPeriod};
+ }
+
+ if(!S.rawRows.length)throw Error('Load the contract assets and select a contract period first.');
  const quoteLines=QC.lines.filter(l=>qPeriod(l)===QC.period);
  if(!quoteLines.length)throw Error('Choose a quote service period to compare.');
  const dates=[QC.period];
@@ -2373,6 +2409,22 @@ function qSimpleRow(r,c){
   return `<tr data-q-product="${qEsc(r.key)}"><td class="l"><b>${qEsc(r.name)}</b><div class="q-price-basis">${monthly?'Unit prices per month':'Annualized price per unit'}</div>${message?`<div class="q-row-alert">${qEsc(message)}</div>`:''}${source}</td><td>${qQuantity(r.baseQty)}</td><td>${qPrice(oldPrice,c)}</td><td class="q-aov">${qMoney(r.baseAOV,c)}</td><td class="q-quote-qty ${cls(qtyChange)}">${invalid?'—':qQuantity(r.finalQty)}</td><td class="q-quote-price ${cls(priceChange)}">${qPrice(newPrice,c)}</td><td class="q-aov q-quote-aov ${cls(aovChange)}">${invalid?'—':qMoney(r.finalAOV,c)}</td><td class="q-delta-qty ${cls(qtyChange)}">${qDelta(qtyChange,qQuantity)}</td><td class="q-delta-price ${cls(priceChange)}">${qDelta(priceChange,v=>qPrice(v,c))}</td><td class="q-aov q-delta-aov ${cls(aovChange)}">${qDelta(aovChange,v=>qMoney(v,c))}</td></tr>`;
 }
 
+function setQuoteMode(m){
+  QC.mode=(m==='swap')?'swap':'replacement';
+  const rep=document.getElementById('qModeHintReplacement'),sw=document.getElementById('qModeHintSwap');
+  if(rep)rep.style.display=QC.mode==='swap'?'none':'';
+  if(sw) sw.style.display=QC.mode==='swap'?'':'none';
+  const sel=document.getElementById('qModeSelect');if(sel)sel.value=QC.mode;
+  renderQuoteComparison();
+}
+// Swap per-product row: swapped out / in / net.
+function qSwapRow(r,c){
+  const dir=r.netAOV>0.005?'q-change-up':r.netAOV<-0.005?'q-change-down':'';
+  return `<tr><td class="l"><b>${qEsc(r.name)}</b></td>`
+    +`<td>${r.outQty?qQuantity(r.outQty):'—'}</td><td class="q-aov">${r.outAOV?qMoney(r.outAOV,c):'—'}</td>`
+    +`<td>${r.inQty?qQuantity(r.inQty):'—'}</td><td class="q-aov">${r.inAOV?qMoney(r.inAOV,c):'—'}</td>`
+    +`<td class="q-aov ${dir}">${qDelta(r.netAOV,v=>qMoney(v,c))}</td></tr>`;
+}
 function renderQuoteComparison(){
  const status=document.getElementById('qStatus'),summary=document.getElementById('qSummary'),tbody=document.getElementById('qRows');
  document.getElementById('qExport').disabled=true;QC.result=null;
@@ -2382,7 +2434,27 @@ function renderQuoteComparison(){
  document.getElementById('qExport').style.display=QC.lines.length?'':'none';
  if(!QC.lines.length){status.textContent='Import the quote export to start the final comparison.';return;}
  setupQuotePeriods();
+ // toggle the matching table header up front so it's correct even if compute throws
+ const isSwap=QC.mode==='swap';
+ document.getElementById('qTheadReplacement').style.display=isSwap?'none':'';
+ document.getElementById('qTheadSwap').style.display=isSwap?'':'none';
  try{const result=computeQuoteComparison();QC.result=result;const c=result.currency;
+
+ if(isSwap){
+   const sw=result.swap;
+   status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c} · <b>Swap quote</b><br>Quote service period: ${qEsc(qPeriodLabel(result.quotePeriod))}`+`<div class="banner banner-success" style="margin-top:12px">Negative lines = swapped out, positive lines = swapped in.</div>`;
+   tbody.innerHTML=sw.rows.map(r=>qSwapRow(r,c)).join('');
+   const netGrowth=sw.net>0.005;
+   summary.innerHTML=
+     [['Swapped out (annual)',sw.out],['Swapped in (annual)',sw.in]].map(([label,value])=>`<div class="metric"><div class="lbl">${label}</div><div class="val" style="font-size:20px">${qMoney(value,c)}</div></div>`).join('')
+     +`<div class="metric"><div class="lbl">Net swap AOV</div><div class="val ${sw.net<0?'neg':'pos'}" style="font-size:20px">${qMoney(sw.net,c)}</div></div>`
+     +(sw.hasContract
+        ? `<div class="q-final-result ${netGrowth?'q-final-growth':''}"><div><div class="lbl">AOV of the swap (net change)</div><div class="q-final-value">${qMoney(sw.net,c)}</div><div class="q-final-explanation">Swapped in ${qMoney(sw.in,c)} − swapped out ${qMoney(sw.out,c)}</div></div><div class="q-final-aov"><div class="lbl">Contract AOV with the swap</div><div class="q-final-value">${qMoney(sw.contractAfter,c)}</div><div class="q-final-explanation">Current contract AOV ${qMoney(sw.contractCurrent,c)} → ${qMoney(sw.contractAfter,c)} after the swap</div></div></div>`
+        : `<div class="banner banner-info" style="grid-column:1/-1;margin-top:8px">Swap AOV (out / in / net) shown above. To also see the <b>contract AOV with the swap</b>, load this contract in the Attrition &amp; AOV tab first — the net swap is then added to its current AOV.</div>`);
+   document.getElementById('qExport').disabled=false;
+   return;
+ }
+
  status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c}<br>Contract baseline: ${qEsc(qPeriodLabel(S.contractPeriod))} · Quote service period: ${qEsc(qPeriodLabel(result.quotePeriod))}`+(result.issues.length?'<div class="banner banner-warn" style="margin-top:12px">Review required:<ul>'+result.issues.map(i=>'<li>'+qEsc(i)+'</li>').join('')+'</ul></div>':'<div class="banner banner-success" style="margin-top:12px">Replacement quote compared with the selected contract period.</div>');
  tbody.innerHTML=result.rows.map(r=>qSimpleRow(r,c)).join('');
  if(!result.issues.length){const v=result.summary;const growth=v.net>.005;summary.innerHTML=[['Previous contract AOV',v.base],['Gross attrition',-v.loss],['Gross growth',v.growth],['Growth offset',v.offset]].map(([label,value])=>`<div class="metric"><div class="lbl">${label}</div><div class="val ${value<0?'neg':''}" style="font-size:20px">${qMoney(value,c)}</div></div>`).join('')+`<div class="q-final-result ${growth?'q-final-growth':''}"><div><div class="lbl">${growth?'Final net growth':'Final net attrition'} after quote replacement</div><div class="q-final-value">${qMoney(growth?v.net:-v.netLoss,c)}</div><div class="q-final-explanation">${growth?'Annual value gained':'Annual value lost'} after the growth offset${v.base>0?' · '+(Math.abs(v.net)/v.base*100).toFixed(1)+'% of previous contract AOV':''}</div></div><div class="q-final-aov"><div class="lbl">New contract AOV from quote</div><div class="q-final-value">${qMoney(v.final,c)}</div><div class="q-final-explanation">Previous AOV ${qMoney(v.base,c)} → replacement AOV ${qMoney(v.final,c)}</div></div></div>`;document.getElementById('qExport').disabled=false;}
@@ -2390,9 +2462,20 @@ function renderQuoteComparison(){
  }catch(e){status.textContent=e.message;}
 }
 function exportQuoteComparison(){
- const r=QC.result;if(!r||r.issues.length)return;
+ const r=QC.result;if(!r)return;
  const esc=v=>'"'+String(v??'').replaceAll('"','""')+'"',safe=v=>typeof v==='string'&&/^[=+\-@\t\r]/.test(v)?"'"+v:v;
- const rows=[['Product','Currency','Contract period','Quote period','Mode','Match','Accounting role','Current qty','Current AOV','Quoted signed qty','Quoted signed annual amount','Resulting qty','Resulting AOV','Modeled min AOV','Modeled max AOV','Quantity effect','Price effect','Gross attrition','Gross growth','Net AOV change'],...r.rows.map(x=>[x.name,r.currency,S.contractPeriod,r.quotePeriod,QC.mode,x.match,x.role,x.baseQty,x.baseAOV,x.signedQty,x.quotedValue,x.finalQty,x.finalAOV,x.modelMin,x.modelMax,x.qtyEffect,x.priceEffect,-x.loss,x.growth,x.net]),['TOTAL',r.currency,S.contractPeriod,r.quotePeriod,QC.mode,'Replacement quote','','',r.summary.base,'','','',r.summary.final,r.summary.modelMin,r.summary.modelMax,'','',-r.summary.loss,r.summary.growth,r.summary.net]];
+ let rows;
+ if(QC.mode==='swap'){
+   const sw=r.swap;
+   rows=[['Product','Currency','Quote period','Mode','Swapped-out qty','Swapped-out AOV','Swapped-in qty','Swapped-in AOV','Net swap AOV'],
+     ...sw.rows.map(x=>[x.name,r.currency,r.quotePeriod,'swap',x.outQty,x.outAOV,x.inQty,x.inAOV,x.netAOV]),
+     ['TOTAL',r.currency,r.quotePeriod,'swap','',sw.out,'',sw.in,sw.net],
+     ['Contract AOV before swap',r.currency,r.quotePeriod,'swap','','','','',sw.hasContract?sw.contractCurrent:'(no contract loaded)'],
+     ['Contract AOV with swap',r.currency,r.quotePeriod,'swap','','','','',sw.hasContract?sw.contractAfter:'(no contract loaded)']];
+ } else {
+   if(r.issues.length)return;
+   rows=[['Product','Currency','Contract period','Quote period','Mode','Match','Accounting role','Current qty','Current AOV','Quoted signed qty','Quoted signed annual amount','Resulting qty','Resulting AOV','Modeled min AOV','Modeled max AOV','Quantity effect','Price effect','Gross attrition','Gross growth','Net AOV change'],...r.rows.map(x=>[x.name,r.currency,S.contractPeriod,r.quotePeriod,QC.mode,x.match,x.role,x.baseQty,x.baseAOV,x.signedQty,x.quotedValue,x.finalQty,x.finalAOV,x.modelMin,x.modelMax,x.qtyEffect,x.priceEffect,-x.loss,x.growth,x.net]),['TOTAL',r.currency,S.contractPeriod,r.quotePeriod,QC.mode,'Replacement quote','','',r.summary.base,'','','',r.summary.final,r.summary.modelMin,r.summary.modelMax,'','',-r.summary.loss,r.summary.growth,r.summary.net]];
+ }
  const url=URL.createObjectURL(new Blob([rows.map(row=>row.map(v=>esc(safe(v))).join(',')).join('\r\n')],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download='contract-quote-comparison.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
