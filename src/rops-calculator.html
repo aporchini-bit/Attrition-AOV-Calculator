@@ -2320,9 +2320,12 @@ function computeQuoteComparison(){
  // ── Swap mode: self-contained, computed from the quote's own +/- lines. ──
  // Works with or without a contract loaded; the contract-after total needs one.
  if(QC.mode==='swap'){
-   const sPeriod=QC.period||latestPeriod([...new Set(QC.lines.map(qPeriod))]);
-   const sLines=QC.lines.filter(l=>qPeriod(l)===sPeriod);
-   if(!sLines.length)throw Error('Choose a quote service period to compare.');
+   // A swap is one event. Swap-out and swap-in lines are sometimes stamped with
+   // end dates a day or two apart, which would otherwise split them across
+   // periods — so in swap mode use ALL quote lines regardless of period.
+   const sLines=QC.lines.slice();
+   const sPeriod=latestPeriod([...new Set(QC.lines.map(qPeriod))]);
+   if(!sLines.length)throw Error('No quote lines to compare.');
    const sCur=[...new Set(sLines.map(l=>l.currencyCode))];
    if(sCur.length!==1||!sCur[0])throw Error('Quote lines must use one known currency.');
    const g=new Map();
@@ -2415,6 +2418,9 @@ function setQuoteMode(m){
   if(rep)rep.style.display=QC.mode==='swap'?'none':'';
   if(sw) sw.style.display=QC.mode==='swap'?'':'none';
   const sel=document.getElementById('qModeSelect');if(sel)sel.value=QC.mode;
+  // the per-period selector is a replacement-mode concept; swap uses all lines
+  const pr=document.getElementById('qPeriodRow');
+  if(pr&&QC.mode==='swap')pr.style.display='none';
   renderQuoteComparison();
 }
 // Swap per-product row: swapped out / in / net.
@@ -2442,7 +2448,8 @@ function renderQuoteComparison(){
 
  if(isSwap){
    const sw=result.swap;
-   status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c} · <b>Swap quote</b><br>Quote service period: ${qEsc(qPeriodLabel(result.quotePeriod))}`+`<div class="banner banner-success" style="margin-top:12px">Negative lines = swapped out, positive lines = swapped in.</div>`;
+   document.getElementById('qPeriodRow').style.display='none'; // swap uses all lines
+   status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c} · <b>Swap quote</b><br>All ${QC.lines.length} quote lines included (swap = one event).`+`<div class="banner banner-success" style="margin-top:12px">Negative lines = swapped out, positive lines = swapped in.</div>`;
    tbody.innerHTML=sw.rows.map(r=>qSwapRow(r,c)).join('');
    const netGrowth=sw.net>0.005;
    summary.innerHTML=
