@@ -2238,6 +2238,17 @@ function qPeriodLabel(value){return formatExpirationDate(value)||'Date not suppl
 function latestPeriod(periods){
   return periods.slice().sort((a,b)=>a.localeCompare(b)).pop()||'';
 }
+// Treat end dates within a few days of each other as the SAME renewal period.
+// CPQ sometimes stamps related lines (e.g. removed vs added) a day or two apart,
+// which would otherwise split one renewal/replacement across periods.
+const QPERIOD_TOL_DAYS=7;
+function qSamePeriod(a,b){
+  if(a===b)return true;
+  if(!a||!b)return false;
+  const da=new Date(a+'T00:00:00'),db=new Date(b+'T00:00:00');
+  if(isNaN(da)||isNaN(db))return false;
+  return Math.abs((da-db)/86400000)<=QPERIOD_TOL_DAYS;
+}
 function setupContractPeriods(){
   const periods=qPeriods();
   S.contractPeriod=latestPeriod(periods);
@@ -2304,10 +2315,12 @@ async function fetchQuote(){
 // Only the latest-ending quote period is ever modeled — earlier periods
 // belong to lines that have already lapsed and are dropped from the comparison.
 function setupQuotePeriods(){
- const periods=[...new Set(QC.lines.map(qPeriod))];
- QC.period=latestPeriod(periods);
+ const allDates=[...new Set(QC.lines.map(qPeriod))];
+ QC.period=latestPeriod(allDates);
+ // Collapse end dates within tolerance of the latest into one effective period.
+ const periods=allDates.filter(d=>!qSamePeriod(d,QC.period)||d===QC.period);
  document.getElementById('qPeriodRow').style.display=periods.length?'':'none';
- const selected=QC.lines.filter(l=>qPeriod(l)===QC.period);
+ const selected=QC.lines.filter(l=>qSamePeriod(qPeriod(l),QC.period));
  document.getElementById('quotePeriodHint').textContent=QC.period
    ? `${qPeriodLabel(QC.period)}${periods.length>1?' · latest of '+periods.length+' periods found; earlier periods ignored':''} — showing ${selected.length} of ${QC.lines.length} lines. Missing products are treated as canceled.`
    : 'No quote lines loaded.';
@@ -2346,7 +2359,7 @@ function computeQuoteComparison(){
  }
 
  if(!S.rawRows.length)throw Error('Load the contract assets and select a contract period first.');
- const quoteLines=QC.lines.filter(l=>qPeriod(l)===QC.period);
+ const quoteLines=QC.lines.filter(l=>qSamePeriod(qPeriod(l),QC.period));
  if(!quoteLines.length)throw Error('Choose a quote service period to compare.');
  const dates=[QC.period];
 
