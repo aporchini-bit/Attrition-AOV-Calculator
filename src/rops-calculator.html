@@ -1210,7 +1210,13 @@ async function fetchContracts() {
 }
 
 function renderContractPicker() {
-  document.getElementById('contractPickerList').innerHTML = S.contracts.map(c => `
+  const combinedCard = S.contracts.length > 1 ? `
+    <div class="metric" style="cursor:pointer; margin-bottom:10px; border:1px solid var(--blue); background:var(--blue-light);" onclick="selectAllContracts()">
+      <div class="lbl">All contracts combined${S.activeContractId==='__all__'?' · selected':''}</div>
+      <div class="val" style="font-size:15px;">${S.contracts.length} contracts · combined AOV</div>
+      <div class="sub">Sum the currently-active lines of all ${S.contracts.length} contracts (same currency required)</div>
+    </div>` : '';
+  document.getElementById('contractPickerList').innerHTML = combinedCard + S.contracts.map(c => `
     <div class="metric" style="cursor:pointer; margin-bottom:10px;" onclick="selectContract('${c.id}')">
       <div class="lbl">${c.contractNumber || c.id}${c.id===S.activeContractId?' · selected':''}</div>
       <div class="val" style="font-size:15px;">${c.accountName || '—'}</div>
@@ -1247,6 +1253,50 @@ function selectContract(contractId) {
     document.getElementById('cardStep2').style.display = '';
     renderContractPicker();
   }
+  setStep(QC.lines.length?4:3);
+  document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Combine every loaded contract into one working set: all currently-active lines
+// (end date in the future) across all contracts, summed. Same currency required.
+function selectAllContracts() {
+  const withRows = S.contracts.filter(c => c.rows && c.rows.length);
+  if (!withRows.length) { showBanner('step1Banner','warn','No contracts have asset lines to combine.'); return; }
+
+  // Map each contract's rows with its own model, stamping the source contract id.
+  let all = [];
+  withRows.forEach(c => {
+    const model = c.model || 'NQE';
+    const mapped = c.rows.map(row => { const r = mapCSVRow(row, model, Object.keys(row)); if (!r.contractId) r.contractId = c.id; return r; });
+    all = all.concat(mapped);
+  });
+
+  // Currency guard — no conversion across mixed currencies.
+  const curs = [...new Set(all.map(r => normalizeCurrency(r.currencyCode) || normalizeCurrency(r.contractCurrencyCode)).filter(Boolean))];
+  if (curs.length > 1) { showBanner('step1Banner','error', `The selected contracts use different currencies (${curs.join(', ')}). Combined AOV needs one currency — no conversion is performed.`); return; }
+
+  S.activeContractId = '__all__';
+  S.contractId = '__all__';
+  S.contractNum = `${withRows.length} contracts combined`;
+  S.model = 'NQE';
+  S.allRawRows = all;
+  S.overrides = {};
+  S.overrideHistory = [];
+  QC.roles = {};
+
+  // "All currently active" = every line whose end date is today or later.
+  const todayISO = new Date().toISOString().slice(0,10);
+  S.contractPeriod = '(all active)';
+  S.rawRows = all.filter(r => (qPeriod(r) || '') >= todayISO);
+
+  document.getElementById('pcLive').value = S.priceCapPct;
+  recalcRender();
+  document.getElementById('resultsArea').style.display = '';
+  const nContracts = [...new Set(S.rawRows.map(r => r.contractId).filter(Boolean))].length;
+  document.getElementById('summaryMeta').textContent =
+    `${S.rawRows.length} active products · ${nContracts} contracts combined · all active periods · ${currencySummary()}`;
+  document.getElementById('cardStep2').style.display = '';
+  renderContractPicker();
   setStep(QC.lines.length?4:3);
   document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2359,9 +2409,12 @@ function computeQuoteComparison(){
  }
 
  if(!S.rawRows.length)throw Error('Load the contract assets and select a contract period first.');
- const quoteLines=QC.lines.filter(l=>qSamePeriod(qPeriod(l),QC.period));
+ // In combined mode ("all active" across contracts) there is no single quote period to match —
+ // use every quote line. Otherwise match the selected contract period (with tolerance).
+ const combined=S.activeContractId==='__all__';
+ const quoteLines=combined?QC.lines.slice():QC.lines.filter(l=>qSamePeriod(qPeriod(l),QC.period));
  if(!quoteLines.length)throw Error('Choose a quote service period to compare.');
- const dates=[QC.period];
+ const dates=[combined?'(all active)':QC.period];
 
  // Multiple contracts are allowed: the comparison is an AOV sum across all loaded
  // contracts (grouped by product) vs the quote's AOV. Same currency is still required.
