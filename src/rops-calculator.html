@@ -2363,11 +2363,14 @@ function computeQuoteComparison(){
  if(!quoteLines.length)throw Error('Choose a quote service period to compare.');
  const dates=[QC.period];
 
- const contractIds=[...new Set(S.rawRows.map(r=>r.contractId).filter(Boolean))];if(contractIds.length>1)throw Error('The asset export contains several contracts. Export one contract at a time.');
+ // Multiple contracts are allowed: the comparison is an AOV sum across all loaded
+ // contracts (grouped by product) vs the quote's AOV. Same currency is still required.
+ const contractIds=[...new Set(S.rawRows.map(r=>r.contractId).filter(Boolean))];
  const currencies=[...new Set([...S.rawRows.map(r=>normalizeCurrency(r.currencyCode)||normalizeCurrency(r.contractCurrencyCode)),...quoteLines.map(l=>l.currencyCode)])];
- if(currencies.length!==1||!currencies[0])throw Error('Contract and quote must use the same known currency. No conversion or mixed-currency totals are performed.');
- const assetIds=S.rawRows.map(r=>r.assetId||r.orderItemId).filter(Boolean);
- if(new Set(assetIds).size!==assetIds.length)throw Error('Duplicate contract asset IDs in this period; remove duplicate export records before comparing.');
+ if(currencies.length!==1||!currencies[0])throw Error('All loaded contracts and the quote must use the same known currency. No conversion or mixed-currency totals are performed.');
+ // Dedupe check is scoped per contract so distinct assets across contracts don't false-trigger.
+ const assetKeys=S.rawRows.map(r=>(r.contractId||'')+'|'+(r.assetId||r.orderItemId||'')).filter(k=>k!=='|'&&!k.endsWith('|'));
+ if(new Set(assetKeys).size!==assetKeys.length)throw Error('Duplicate contract asset IDs in this period; remove duplicate export records before comparing.');
  const currency=currencies[0],groups=new Map(),issues=[];
  const modeled=calcAll(S.rawRows,{customerHealth:S.customerHealth,priceCapPct:S.priceCapPct},S.overrides).rows;
  modeled.forEach(row=>{const r=row.r,key=qKey(r);if(!key)throw Error('Contract export needs Product2.Id for matching. Regenerate the contract query and export.');
@@ -2475,9 +2478,11 @@ function renderQuoteComparison(){
    return;
  }
 
- status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c}<br>Contract baseline: ${qEsc(qPeriodLabel(S.contractPeriod))} · Quote service period: ${qEsc(qPeriodLabel(result.quotePeriod))}`+(result.issues.length?'<div class="banner banner-warn" style="margin-top:12px">Review required:<ul>'+result.issues.map(i=>'<li>'+qEsc(i)+'</li>').join('')+'</ul></div>':'<div class="banner banner-success" style="margin-top:12px">Replacement quote compared with the selected contract period.</div>');
+ const nContracts=[...new Set(S.rawRows.map(r=>r.contractId).filter(Boolean))].length;
+ const contractLbl=nContracts>1?`${nContracts} contracts (combined)`:'contract';
+ status.innerHTML=`<b>Quote ${qEsc(QC.lines[0].quoteName||QC.lines[0].quoteId)}</b> · ${qEsc(QC.lines[0].status)} · ${c}<br>Baseline: ${nContracts>1?qEsc(nContracts+' contracts combined'):qEsc(qPeriodLabel(S.contractPeriod))} · Quote service period: ${qEsc(qPeriodLabel(result.quotePeriod))}`+(result.issues.length?'<div class="banner banner-warn" style="margin-top:12px">Review required:<ul>'+result.issues.map(i=>'<li>'+qEsc(i)+'</li>').join('')+'</ul></div>':`<div class="banner banner-success" style="margin-top:12px">Quote AOV compared with the ${nContracts>1?'combined AOV of '+nContracts+' contracts':'selected contract period'}.</div>`);
  tbody.innerHTML=result.rows.map(r=>qSimpleRow(r,c)).join('');
- if(!result.issues.length){const v=result.summary;const growth=v.net>.005;summary.innerHTML=[['Previous contract AOV',v.base],['Gross attrition',-v.loss],['Gross growth',v.growth],['Growth offset',v.offset]].map(([label,value])=>`<div class="metric"><div class="lbl">${label}</div><div class="val ${value<0?'neg':''}" style="font-size:20px">${qMoney(value,c)}</div></div>`).join('')+`<div class="q-final-result ${growth?'q-final-growth':''}"><div><div class="lbl">${growth?'Final net growth':'Final net attrition'} after quote replacement</div><div class="q-final-value">${qMoney(growth?v.net:-v.netLoss,c)}</div><div class="q-final-explanation">${growth?'Annual value gained':'Annual value lost'} after the growth offset${v.base>0?' · '+(Math.abs(v.net)/v.base*100).toFixed(1)+'% of previous contract AOV':''}</div></div><div class="q-final-aov"><div class="lbl">New contract AOV from quote</div><div class="q-final-value">${qMoney(v.final,c)}</div><div class="q-final-explanation">Previous AOV ${qMoney(v.base,c)} → replacement AOV ${qMoney(v.final,c)}</div></div></div>`;document.getElementById('qExport').disabled=false;}
+ if(!result.issues.length){const v=result.summary;const growth=v.net>.005;const baseLbl=nContracts>1?`Current AOV · ${nContracts} contracts`:'Previous contract AOV';summary.innerHTML=[[baseLbl,v.base],['Gross attrition',-v.loss],['Gross growth',v.growth],['Growth offset',v.offset]].map(([label,value])=>`<div class="metric"><div class="lbl">${label}</div><div class="val ${value<0?'neg':''}" style="font-size:20px">${qMoney(value,c)}</div></div>`).join('')+`<div class="q-final-result ${growth?'q-final-growth':''}"><div><div class="lbl">${growth?'Final net growth':'Final net attrition'} after quote replacement</div><div class="q-final-value">${qMoney(growth?v.net:-v.netLoss,c)}</div><div class="q-final-explanation">${growth?'Annual value gained':'Annual value lost'} after the growth offset${v.base>0?' · '+(Math.abs(v.net)/v.base*100).toFixed(1)+'% of '+(nContracts>1?'combined contract AOV':'previous contract AOV'):''}</div></div><div class="q-final-aov"><div class="lbl">New AOV from quote</div><div class="q-final-value">${qMoney(v.final,c)}</div><div class="q-final-explanation">${nContracts>1?'Combined':'Previous'} AOV ${qMoney(v.base,c)} → quote AOV ${qMoney(v.final,c)}</div></div></div>`;document.getElementById('qExport').disabled=false;}
  else summary.innerHTML='<div class="banner banner-info" style="grid-column:1/-1">Line-level previews are shown for review. Resolve the specific issues above to display totals and export the comparison.</div>';
  }catch(e){status.textContent=e.message;}
 }
